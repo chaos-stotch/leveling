@@ -1,0 +1,38 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Roboto', 'Segoe UI', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0a0e27;
+  background-image: 
+    radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.05) 0%, transparent 50%);
+  color: #00D4FF;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@keyframes glow {
+  0%, 100% {
+    text-shadow: 0 0 5px #00D4FF, 0 0 10px #00D4FF, 0 0 15px #00D4FF;
+  }
+  50% {
+    text-shadow: 0 0 10px #00D4FF, 0 0 20px #00D4FF, 0 0 30px #00D4FF, 0 0 40px #00D4FF;
+  }
+}
+
+.glow-text {
+  animation: glow 2s ease-in-out infinite;
+  color: #00D4FF;
+  text-shadow: 0 0 10px #00D4FF, 0 0 20px #00D4FF;
+}
+
