@@ -18,12 +18,16 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Divider,
+  Card,
+  CardContent,
 } from '@mui/material';
-import { Add, Delete, Edit } from '@mui/icons-material';
-import { getTasks, saveTasks } from '../utils/storage';
+import { Add, Delete, Edit, AddCircle, RemoveCircle } from '@mui/icons-material';
+import { getTasks, saveTasks, getPlayerData, savePlayerData } from '../utils/storage';
 
 const Admin = () => {
   const [tasks, setTasks] = useState([]);
+  const [playerData, setPlayerData] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -40,11 +44,17 @@ const Admin = () => {
 
   useEffect(() => {
     loadTasks();
+    loadPlayerData();
   }, []);
 
   const loadTasks = () => {
     const allTasks = getTasks();
     setTasks(allTasks);
+  };
+
+  const loadPlayerData = () => {
+    const data = getPlayerData();
+    setPlayerData(data);
   };
 
   const handleInputChange = (field, value) => {
@@ -137,6 +147,46 @@ const Admin = () => {
     });
   };
 
+  const adjustLevel = (delta) => {
+    if (!playerData) return;
+    const newLevel = Math.max(1, playerData.level + delta);
+    const updatedData = { ...playerData, level: newLevel };
+    savePlayerData(updatedData);
+    setPlayerData(updatedData);
+  };
+
+  const adjustSkillLevel = (skillName, delta) => {
+    if (!playerData || !playerData.skills[skillName]) return;
+    const newLevel = Math.max(1, playerData.skills[skillName].level + delta);
+    const updatedData = {
+      ...playerData,
+      skills: {
+        ...playerData.skills,
+        [skillName]: {
+          ...playerData.skills[skillName],
+          level: newLevel,
+          xp: 0, // Reset XP when manually adjusting level
+        }
+      }
+    };
+    savePlayerData(updatedData);
+    setPlayerData(updatedData);
+  };
+
+  const resetXP = () => {
+    if (!playerData) return;
+    const updatedData = {
+      ...playerData,
+      xp: 0,
+      skills: Object.keys(playerData.skills).reduce((acc, skill) => {
+        acc[skill] = { ...playerData.skills[skill], xp: 0 };
+        return acc;
+      }, {})
+    };
+    savePlayerData(updatedData);
+    setPlayerData(updatedData);
+  };
+
   const daysOfWeek = [
     { value: 0, label: 'Domingo' },
     { value: 1, label: 'Segunda' },
@@ -181,6 +231,8 @@ const Admin = () => {
           ADMIN - GERENCIAR TAREFAS
         </Typography>
       </Box>
+
+      
 
       <Paper
         sx={{
@@ -510,6 +562,116 @@ const Admin = () => {
             </Box>
           </Paper>
         ))
+      )}
+      {/* Seção de Gerenciamento de Níveis */}
+      {playerData && (
+        <Paper
+          sx={{
+            p: 3,
+            mb: 4,
+            backgroundColor: 'background.paper',
+            border: '2px solid rgba(0, 212, 255, 0.5)',
+            boxShadow: '0 0 30px rgba(0, 212, 255, 0.2)',
+          }}
+        >
+          <Typography
+            variant="h6"
+            gutterBottom
+            sx={{
+              mb: 3,
+              color: '#00D4FF',
+              textShadow: '0 0 10px #00D4FF',
+              textTransform: 'uppercase',
+              letterSpacing: '2px',
+            }}
+          >
+            GERENCIAR NÍVEIS
+          </Typography>
+
+          <Grid container spacing={3}>
+            {/* Nível Geral */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ backgroundColor: 'rgba(0, 212, 255, 0.1)', border: '1px solid rgba(0, 212, 255, 0.3)' }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ color: '#00D4FF', mb: 2 }}>
+                    Nível Geral
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body1" sx={{ color: '#B0E0FF' }}>
+                      Nível Atual: {playerData.level}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <IconButton
+                        onClick={() => adjustLevel(-1)}
+                        sx={{ color: '#FF6B6B' }}
+                        size="small"
+                      >
+                        <RemoveCircle />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => adjustLevel(1)}
+                        sx={{ color: '#00FF88' }}
+                        size="small"
+                      >
+                        <AddCircle />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                  <Typography variant="body2" sx={{ color: '#6B7A99' }}>
+                    XP: {playerData.xp}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Habilidades */}
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle1" sx={{ color: '#B0E0FF', mb: 2 }}>
+                Habilidades
+              </Typography>
+              {Object.entries(playerData.skills).map(([skillName, skillData]) => {
+                const skillNamesMap = {
+                  strength: 'Força',
+                  vitality: 'Vitalidade',
+                  agility: 'Agilidade',
+                  intelligence: 'Inteligência',
+                  persistence: 'Persistência',
+                };
+
+                return (
+                  <Box key={skillName} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Box>
+                      <Typography variant="body2" sx={{ color: '#00D4FF' }}>
+                        {skillNamesMap[skillName]}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#6B7A99' }}>
+                        Nível {skillData.level} • XP: {skillData.xp}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <IconButton
+                        onClick={() => adjustSkillLevel(skillName, -1)}
+                        sx={{ color: '#FF6B6B' }}
+                        size="small"
+                      >
+                        <RemoveCircle fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => adjustSkillLevel(skillName, 1)}
+                        sx={{ color: '#00FF88' }}
+                        size="small"
+                      >
+                        <AddCircle fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 3, borderColor: 'rgba(0, 212, 255, 0.3)' }} />
+        </Paper>
       )}
     </Box>
   );

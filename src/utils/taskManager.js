@@ -21,9 +21,8 @@ export const isPastMidnight = () => {
 // Resetar tarefas diárias
 export const resetDailyTasks = (allTasks) => {
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
-  // Verificar tarefa diária
+
+  // Verificar tarefa diária e bloqueio
   const dailyTask = getDailyTask();
   if (dailyTask && !dailyTask.completed) {
     // Se a tarefa diária não foi completada, bloquear o app
@@ -31,72 +30,60 @@ export const resetDailyTasks = (allTasks) => {
   } else {
     setBlocked(false);
   }
-  
-  // Filtrar tarefas para manter
+
+  // Filtrar tarefas para manter - lógica simplificada e corrigida
   const tasksToKeep = allTasks.filter(task => {
-    // Não remover tarefas base (templates) de tarefas quotidianas
+    // Sempre manter tarefas base (templates) de tarefas quotidianas
     if (task.isDaily && !task.isDailyInstance) {
-      return true; // Manter templates de tarefas quotidianas
+      return true;
     }
-    
-    // Remover instâncias de tarefas quotidianas do dia anterior
-    if (task.isDailyInstance) {
-      return false; // Serão recriadas abaixo se necessário
-    }
-    
-    // Remover tarefas que devem ser substituídas ao final do dia (não completadas)
-    if (task.replaceAtEndOfDay && !task.completed) {
+
+    // Sempre remover tarefas completadas (independentemente de quando foram completadas)
+    if (task.completed) {
       return false;
     }
-    
-    // Se completada e replaceAtEndOfDay, remover na meia-noite do dia de conclusão
-    if (task.completed && task.replaceAtEndOfDay && task.completedAt) {
-      const completedDate = new Date(task.completedAt);
-      const completedDay = new Date(completedDate.getFullYear(), completedDate.getMonth(), completedDate.getDate());
-      return today.getTime() <= completedDay.getTime();
+
+    // Remover tarefas não completadas que devem ser substituídas ao final do dia
+    if (task.replaceAtEndOfDay) {
+      return false;
     }
-    
-    // Se completada e não replaceAtEndOfDay, remover na meia-noite do dia de conclusão
-    if (task.completed && !task.replaceAtEndOfDay && task.completedAt) {
-      const completedDate = new Date(task.completedAt);
-      const completedDay = new Date(completedDate.getFullYear(), completedDate.getMonth(), completedDate.getDate());
-      return today.getTime() <= completedDay.getTime();
-    }
-    
+
+    // Manter tarefas comuns não completadas que não devem ser substituídas
     return true;
   });
-  
-  // Adicionar tarefas quotidianas para o dia atual
+
+  // Adicionar novas instâncias de tarefas quotidianas para o dia atual
   const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Segunda, etc.
   const dailyTaskTemplates = allTasks.filter(task => task.isDaily && !task.isDailyInstance && task.daysOfWeek?.includes(dayOfWeek));
-  
+
   dailyTaskTemplates.forEach(task => {
     // Verificar se já existe uma instância não completada desta tarefa
-    const existingInstance = tasksToKeep.find(t => 
-      t.isDailyInstance && 
-      t.title === task.title && 
+    const existingInstance = tasksToKeep.find(t =>
+      t.isDailyInstance &&
+      t.title === task.title &&
       !t.completed
     );
-    
+
     if (!existingInstance) {
       tasksToKeep.push({
         ...task,
         id: Date.now() + Math.random(),
         completed: false,
         completedAt: null,
+        startedAt: null,
         isDailyInstance: true,
       });
     }
   });
-  
+
   saveTasks(tasksToKeep);
   saveLastDailyReset(now);
-  
+
   // Gerar nova tarefa diária se necessário
   if (!dailyTask || dailyTask.completed || isNewDay()) {
     generateNewDailyTask(allTasks);
   }
-  
+
   return tasksToKeep;
 };
 
