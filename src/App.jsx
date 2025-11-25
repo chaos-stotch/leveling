@@ -8,9 +8,7 @@ import NotificationsPage from './pages/Notifications';
 import Admin from './pages/Admin';
 import NotificationModal from './components/NotificationModal';
 import BlockedScreen from './components/BlockedScreen';
-import { isBlocked, setBlocked, getNotifications, saveNotification } from './utils/storage';
-import { resetDailyTasks, isNewDay } from './utils/taskManager';
-import { getTasks } from './utils/storage';
+import { isBlocked, getNotifications } from './utils/storage';
 
 const theme = createTheme({
   palette: {
@@ -185,43 +183,13 @@ function App() {
     };
     checkBlocked();
 
-    // Verificar reset diário e notificações
-    const checkDailyReset = () => {
-      if (isNewDay()) {
-        const allTasks = getTasks();
-        resetDailyTasks(allTasks);
-        
-        // Notificar sobre mudança de tarefas
-        saveNotification({
-          type: 'task_reset',
-          title: 'Tarefas Atualizadas',
-          message: 'As tarefas foram atualizadas para o novo dia!',
-        });
-        
-        // Verificar bloqueio novamente após reset
-        setBlockedState(isBlocked());
-        
-        // Adicionar notificação à fila se houver
-        setTimeout(() => {
-          const notifications = getNotifications();
-          if (notifications.length > 0) {
-            setNotificationQueue((prevQueue) => [...prevQueue, notifications[0]]);
-            setLastNotificationCheck(Date.now());
-          }
-        }, 500);
-      }
-    };
-
-    checkDailyReset();
-    const interval = setInterval(checkDailyReset, 60000); // Verificar a cada minuto
-
     // Verificar novas notificações e adicionar à fila
     const checkNotifications = () => {
       const notifications = getNotifications();
       const newNotifications = notifications.filter(
         (n) => new Date(n.timestamp).getTime() > lastNotificationCheck
       );
-      
+
       if (newNotifications.length > 0) {
         // Adicionar novas notificações à fila
         setNotificationQueue((prevQueue) => [...prevQueue, ...newNotifications]);
@@ -232,7 +200,6 @@ function App() {
     const notificationInterval = setInterval(checkNotifications, 1000);
 
     return () => {
-      clearInterval(interval);
       clearInterval(notificationInterval);
     };
   }, [lastNotificationCheck, showNotification]);
@@ -251,21 +218,6 @@ function App() {
     }
   }, [notificationQueue, showNotification]);
 
-  const handleTaskComplete = () => {
-    // Verificar se há novas notificações após completar tarefa
-    setTimeout(() => {
-      const notifications = getNotifications();
-      const newNotifications = notifications.filter(
-        (n) => new Date(n.timestamp).getTime() > lastNotificationCheck
-      );
-      
-      if (newNotifications.length > 0) {
-        // Adicionar à fila
-        setNotificationQueue((prevQueue) => [...prevQueue, ...newNotifications]);
-        setLastNotificationCheck(Date.now());
-      }
-    }, 100);
-  };
 
   const handleCloseNotification = () => {
     setShowNotification(false);
@@ -285,7 +237,7 @@ function App() {
 
   const pages = [
     { component: <Statistics />, label: 'Estatísticas', icon: <BarChart /> },
-    { component: <Tasks onTaskComplete={handleTaskComplete} />, label: 'Tarefas', icon: <Assignment /> },
+    { component: <Tasks />, label: 'Tarefas', icon: <Assignment /> },
     { component: <NotificationsPage />, label: 'Notificações', icon: <Notifications /> },
     { component: <Admin />, label: 'Admin', icon: <Settings /> },
   ];

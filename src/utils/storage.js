@@ -3,7 +3,6 @@ const STORAGE_KEYS = {
   PLAYER_DATA: 'leveling_player_data',
   TASKS: 'leveling_tasks',
   NOTIFICATIONS: 'leveling_notifications',
-  LAST_DAILY_RESET: 'leveling_last_daily_reset',
   BLOCKED: 'leveling_blocked',
 };
 
@@ -57,15 +56,6 @@ export const saveNotification = (notification) => {
   localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
 };
 
-
-export const getLastDailyReset = () => {
-  const data = localStorage.getItem(STORAGE_KEYS.LAST_DAILY_RESET);
-  return data ? new Date(data) : null;
-};
-
-export const saveLastDailyReset = (date) => {
-  localStorage.setItem(STORAGE_KEYS.LAST_DAILY_RESET, date.toISOString());
-};
 
 export const isBlocked = () => {
   const data = localStorage.getItem(STORAGE_KEYS.BLOCKED);

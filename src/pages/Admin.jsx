@@ -18,12 +18,28 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Divider,
-  Card,
-  CardContent,
+  Switch,
 } from '@mui/material';
-import { Add, Delete, Edit, AddCircle, RemoveCircle, ToggleOn, ToggleOff } from '@mui/icons-material';
+import { Add, Delete, Edit } from '@mui/icons-material';
 import { getTasks, saveTasks, getPlayerData, savePlayerData } from '../utils/storage';
+
+// Funções auxiliares para gerenciar tarefas concluídas
+const COMPLETED_TASKS_KEY = 'leveling_completed_tasks';
+
+const getCompletedTasks = () => {
+  const data = localStorage.getItem(COMPLETED_TASKS_KEY);
+  return data ? JSON.parse(data) : [];
+};
+
+const saveCompletedTasks = (completedTasks) => {
+  localStorage.setItem(COMPLETED_TASKS_KEY, JSON.stringify(completedTasks));
+};
+
+const removeCompletedTask = (taskId) => {
+  const completedTasks = getCompletedTasks();
+  const filtered = completedTasks.filter(id => id !== taskId);
+  saveCompletedTasks(filtered);
+};
 
 const Admin = () => {
   const [tasks, setTasks] = useState([]);
@@ -35,8 +51,7 @@ const Admin = () => {
     xp: 10,
     skills: [],
     duration: 60,
-    enabled: true, // Se aparece na tela de tarefas
-    permanent: false, // Se é permanente (só some quando concluída ou desabilitada)
+    active: true,
   });
   const [editDialog, setEditDialog] = useState({ open: false, task: null });
 
@@ -46,30 +61,7 @@ const Admin = () => {
   }, []);
 
   const loadTasks = () => {
-    let allTasks = getTasks();
-
-    // Migração: adicionar campos novos para tarefas existentes
-    let needsMigration = false;
-    allTasks = allTasks.map(task => {
-      if (task.enabled === undefined) {
-        task.enabled = true;
-        needsMigration = true;
-      }
-      if (task.permanent === undefined) {
-        task.permanent = false;
-        needsMigration = true;
-      }
-      if (task.isInstance === undefined) {
-        task.isInstance = false;
-        needsMigration = true;
-      }
-      return task;
-    });
-
-    if (needsMigration) {
-      saveTasks(allTasks);
-    }
-
+    const allTasks = getTasks();
     setTasks(allTasks);
   };
 
@@ -99,7 +91,6 @@ const Admin = () => {
     const newTask = {
       id: Date.now(),
       ...formData,
-      isInstance: false, // É um template
       completed: false,
     };
 
@@ -112,10 +103,10 @@ const Admin = () => {
   const handleEdit = (task) => {
     setEditDialog({ open: true, task });
     // Compatibilidade: se task.skill existe (string antiga), converter para array
-    const skills = task.skills 
+    const skills = task.skills
       ? (Array.isArray(task.skills) ? task.skills : [task.skills])
       : (task.skill ? [task.skill] : []);
-    
+
     setFormData({
       title: task.title,
       description: task.description,
@@ -123,17 +114,25 @@ const Admin = () => {
       xp: task.xp,
       skills: skills,
       duration: task.duration || 60,
-      enabled: task.enabled !== undefined ? task.enabled : true,
-      permanent: task.permanent || false,
+      active: task.active !== false, // Default true se não definido
     });
   };
 
   const handleUpdate = () => {
+    const taskBeingEdited = tasks.find(t => t.id === editDialog.task.id);
+    const isChangingActiveStatus = taskBeingEdited && taskBeingEdited.active !== formData.active;
+
     const updatedTasks = tasks.map((t) =>
       t.id === editDialog.task.id ? { ...t, ...formData } : t
     );
     saveTasks(updatedTasks);
     setTasks(updatedTasks);
+
+    // Se o status ativo mudou (desabilitada->habilitada ou vice-versa), resetar status de concluída
+    if (isChangingActiveStatus) {
+      removeCompletedTask(editDialog.task.id);
+    }
+
     setEditDialog({ open: false, task: null });
     resetForm();
   };
@@ -154,59 +153,39 @@ const Admin = () => {
       xp: 10,
       skills: [],
       duration: 60,
-      enabled: true,
-      permanent: false,
+      active: true,
     });
   };
 
-  const adjustLevel = (delta) => {
-    if (!playerData) return;
-    const newLevel = Math.max(1, playerData.level + delta);
-    const updatedData = { ...playerData, level: newLevel };
-    savePlayerData(updatedData);
-    setPlayerData(updatedData);
-  };
-
-  const adjustSkillLevel = (skillName, delta) => {
-    if (!playerData || !playerData.skills[skillName]) return;
-    const newLevel = Math.max(1, playerData.skills[skillName].level + delta);
-    const updatedData = {
-      ...playerData,
-      skills: {
-        ...playerData.skills,
-        [skillName]: {
-          ...playerData.skills[skillName],
-          level: newLevel,
-          xp: 0, // Reset XP when manually adjusting level
-        }
+  const handlePlayerLevelChange = (field, value) => {
+    const updatedData = { ...playerData };
+    if (field === 'level' || field === 'xp') {
+      updatedData[field] = parseInt(value) || 0;
+    } else if (field.includes('.')) {
+      const [skill, skillField] = field.split('.');
+      if (updatedData.skills[skill]) {
+        updatedData.skills[skill][skillField] = parseInt(value) || 0;
       }
-    };
-    savePlayerData(updatedData);
+    }
     setPlayerData(updatedData);
+    savePlayerData(updatedData);
   };
 
-  const resetXP = () => {
-    if (!playerData) return;
-    const updatedData = {
-      ...playerData,
-      xp: 0,
-      skills: Object.keys(playerData.skills).reduce((acc, skill) => {
-        acc[skill] = { ...playerData.skills[skill], xp: 0 };
-        return acc;
-      }, {})
-    };
-    savePlayerData(updatedData);
-    setPlayerData(updatedData);
-  };
-
-  const toggleTaskEnabled = (taskId) => {
-    const updatedTasks = tasks.map((t) =>
-      t.id === taskId ? { ...t, enabled: !t.enabled } : t
-    );
+  const handleToggleActive = (taskId) => {
+    const updatedTasks = tasks.map((t) => {
+      if (t.id === taskId) {
+        const newActiveStatus = t.active !== false ? false : true;
+        // Se estiver sendo desabilitada ou reabilitada, resetar status de concluída
+        if (t.active !== newActiveStatus) {
+          removeCompletedTask(taskId);
+        }
+        return { ...t, active: newActiveStatus };
+      }
+      return t;
+    });
     saveTasks(updatedTasks);
     setTasks(updatedTasks);
   };
-
 
   const skillNames = {
     strength: 'Força',
@@ -215,6 +194,14 @@ const Admin = () => {
     intelligence: 'Inteligência',
     persistence: 'Persistência',
   };
+
+  const skillsList = [
+    { value: 'strength', label: 'Força' },
+    { value: 'vitality', label: 'Vitalidade' },
+    { value: 'agility', label: 'Agilidade' },
+    { value: 'intelligence', label: 'Inteligência' },
+    { value: 'persistence', label: 'Persistência' },
+  ];
 
   return (
     <Box sx={{ p: 3, minHeight: '100vh', backgroundColor: 'background.default' }}>
@@ -239,12 +226,11 @@ const Admin = () => {
             letterSpacing: '3px',
           }}
         >
-          ADMIN - GERENCIAR TAREFAS
+          ADMIN - GERENCIAR TEMPLATES DE TAREFAS
         </Typography>
       </Box>
 
       
-
       <Paper
         sx={{
           p: 3,
@@ -265,7 +251,7 @@ const Admin = () => {
             letterSpacing: '2px',
           }}
         >
-          {editDialog.open ? 'Editar Tarefa' : 'Adicionar Nova Tarefa'}
+          {editDialog.open ? 'Editar Template de Tarefa' : 'Adicionar Novo Template de Tarefa'}
         </Typography>
 
         <Grid container spacing={2}>
@@ -356,26 +342,15 @@ const Admin = () => {
               />
             </Grid>
           )}
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12}>
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={formData.enabled}
-                  onChange={(e) => handleInputChange('enabled', e.target.checked)}
+                  checked={formData.active}
+                  onChange={(e) => handleInputChange('active', e.target.checked)}
                 />
               }
-              label="Habilitada (aparece na tela de tarefas)"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.permanent}
-                  onChange={(e) => handleInputChange('permanent', e.target.checked)}
-                />
-              }
-              label="Permanente (só some quando concluída ou desabilitada)"
+              label="Tarefa Ativa (aparecerá na lista de tarefas disponíveis)"
             />
           </Grid>
           <Grid item xs={12}>
@@ -385,7 +360,7 @@ const Admin = () => {
               onClick={editDialog.open ? handleUpdate : handleSubmit}
               fullWidth
             >
-              {editDialog.open ? 'Atualizar Tarefa' : 'Adicionar Tarefa'}
+              {editDialog.open ? 'Atualizar Template' : 'Adicionar Template'}
             </Button>
             {editDialog.open && (
               <Button
@@ -415,12 +390,12 @@ const Admin = () => {
           letterSpacing: '2px',
         }}
       >
-        Tarefas Existentes ({tasks.length})
+        Templates de Tarefas ({tasks.length})
       </Typography>
 
       {tasks.length === 0 ? (
         <Typography sx={{ color: '#6B7A99', textAlign: 'center', py: 4 }}>
-          Nenhuma tarefa cadastrada
+          Nenhum template de tarefa cadastrado
         </Typography>
       ) : (
         tasks.map((task) => (
@@ -442,6 +417,37 @@ const Admin = () => {
                 <Typography variant="body2" sx={{ mb: 1.5, color: '#B0E0FF', lineHeight: 1.6 }}>
                   {task.description}
                 </Typography>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+                  <Typography variant="body2" sx={{ color: '#B0E0FF' }}>
+                    Status:
+                  </Typography>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={task.active !== false}
+                        onChange={() => handleToggleActive(task.id)}
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: '#00FF88',
+                            '&:hover': {
+                              backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                            },
+                          },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            backgroundColor: '#00FF88',
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography variant="body2" sx={{ color: task.active !== false ? '#00FF88' : '#FF6B6B' }}>
+                        {task.active !== false ? 'Ativa' : 'Inativa'}
+                      </Typography>
+                    }
+                  />
+                </Box>
+
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Chip
                     label={task.type === 'common' ? 'Comum' : 'Por Tempo'}
@@ -466,7 +472,7 @@ const Admin = () => {
                     const skills = task.skills
                       ? (Array.isArray(task.skills) ? task.skills : [task.skills])
                       : (task.skill ? [task.skill] : []);
-                    
+
                     return skills.map((skill) => (
                       <Chip
                         key={skill}
@@ -480,24 +486,6 @@ const Admin = () => {
                       />
                     ));
                   })()}
-                  <Chip
-                    label={task.enabled ? 'Habilitada' : 'Desabilitada'}
-                    size="small"
-                    sx={{
-                      backgroundColor: task.enabled ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 107, 107, 0.2)',
-                      color: task.enabled ? '#00FF88' : '#FF6B6B',
-                      border: `1px solid ${task.enabled ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 107, 107, 0.5)'}`,
-                    }}
-                  />
-                  <Chip
-                    label={task.permanent ? 'Permanente' : 'Temporária'}
-                    size="small"
-                    sx={{
-                      backgroundColor: task.permanent ? 'rgba(33, 150, 243, 0.2)' : 'rgba(255, 193, 7, 0.2)',
-                      color: task.permanent ? '#2196F3' : '#FFC107',
-                      border: `1px solid ${task.permanent ? 'rgba(33, 150, 243, 0.5)' : 'rgba(255, 193, 7, 0.5)'}`,
-                    }}
-                  />
                 </Box>
               </Box>
               <Box>
@@ -512,18 +500,6 @@ const Admin = () => {
                   }}
                 >
                   <Edit />
-                </IconButton>
-                <IconButton
-                  onClick={() => toggleTaskEnabled(task.id)}
-                  sx={{
-                    color: task.enabled ? '#00FF88' : '#FF6B6B',
-                    '&:hover': {
-                      backgroundColor: task.enabled ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 107, 107, 0.1)',
-                      boxShadow: task.enabled ? '0 0 10px rgba(0, 255, 136, 0.5)' : '0 0 10px rgba(255, 107, 107, 0.5)',
-                    },
-                  }}
-                >
-                  {task.enabled ? <ToggleOn /> : <ToggleOff />}
                 </IconButton>
                 <IconButton
                   onClick={() => handleDelete(task.id)}
@@ -542,8 +518,8 @@ const Admin = () => {
           </Paper>
         ))
       )}
-      {/* Seção de Gerenciamento de Níveis */}
-      {playerData && (
+
+{playerData && (
         <Paper
           sx={{
             p: 3,
@@ -564,112 +540,61 @@ const Admin = () => {
               letterSpacing: '2px',
             }}
           >
-            GERENCIAR NÍVEIS
+            GERENCIAR NÍVEIS E XP
           </Typography>
 
           <Grid container spacing={3}>
-            {/* Nível Geral */}
-            <Grid item xs={12} md={6}>
-              <Card sx={{ backgroundColor: 'rgba(0, 212, 255, 0.1)', border: '1px solid rgba(0, 212, 255, 0.3)' }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ color: '#00D4FF', mb: 2 }}>
-                    Nível Geral
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body1" sx={{ color: '#B0E0FF' }}>
-                      Nível Atual: {playerData.level}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <IconButton
-                        onClick={() => adjustLevel(-1)}
-                        sx={{ color: '#FF6B6B' }}
-                        size="small"
-                      >
-                        <RemoveCircle />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => adjustLevel(1)}
-                        sx={{ color: '#00FF88' }}
-                        size="small"
-                      >
-                        <AddCircle />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                  <Typography variant="body2" sx={{ color: '#6B7A99' }}>
-                    XP: {playerData.xp}
-                  </Typography>
-                </CardContent>
-              </Card>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Nível Geral"
+                type="number"
+                value={playerData.level}
+                onChange={(e) => handlePlayerLevelChange('level', e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="XP Geral"
+                type="number"
+                value={playerData.xp}
+                onChange={(e) => handlePlayerLevelChange('xp', e.target.value)}
+              />
             </Grid>
 
-            {/* Habilidades */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle1" sx={{ color: '#B0E0FF', mb: 2 }}>
-                Habilidades
-              </Typography>
-              {Object.entries(playerData.skills).map(([skillName, skillData]) => {
-                const skillNamesMap = {
-                  strength: 'Força',
-                  vitality: 'Vitalidade',
-                  agility: 'Agilidade',
-                  intelligence: 'Inteligência',
-                  persistence: 'Persistência',
-                };
-
-                return (
-                  <Box key={skillName} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ color: '#00D4FF' }}>
-                        {skillNamesMap[skillName]}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#6B7A99' }}>
-                        Nível {skillData.level} • XP: {skillData.xp}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <IconButton
-                        onClick={() => adjustSkillLevel(skillName, -1)}
-                        sx={{ color: '#FF6B6B' }}
-                        size="small"
-                      >
-                        <RemoveCircle fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => adjustSkillLevel(skillName, 1)}
-                        sx={{ color: '#00FF88' }}
-                        size="small"
-                      >
-                        <AddCircle fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                );
-              })}
-            </Grid>
+            {skillsList.map((skill) => (
+              <Grid item xs={12} sm={6} md={4} key={skill.value}>
+                <Paper sx={{ p: 2, backgroundColor: 'rgba(0, 212, 255, 0.05)' }}>
+                  <Typography variant="subtitle1" sx={{ color: '#00D4FF', mb: 1 }}>
+                    {skill.label}
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Nível"
+                    type="number"
+                    value={playerData.skills[skill.value].level}
+                    onChange={(e) => handlePlayerLevelChange(`${skill.value}.level`, e.target.value)}
+                    sx={{ mb: 1 }}
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="XP"
+                    type="number"
+                    value={playerData.skills[skill.value].xp}
+                    onChange={(e) => handlePlayerLevelChange(`${skill.value}.xp`, e.target.value)}
+                  />
+                </Paper>
+              </Grid>
+            ))}
           </Grid>
-          <Divider sx={{ my: 3, borderColor: 'rgba(0, 212, 255, 0.3)' }} />
-          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-            <Button
-              variant="contained"
-              onClick={resetXP}
-              sx={{
-                backgroundColor: '#FF4B4B',
-                color: '#fff',
-                fontWeight: 600,
-                boxShadow: 2,
-                '&:hover': {
-                  backgroundColor: '#D32F2F',
-                },
-              }}
-            >
-              Resetar XP do Jogador
-            </Button>
-          </Box>
-
         </Paper>
       )}
+
     </Box>
+    
   );
 };
 

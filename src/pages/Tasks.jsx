@@ -17,6 +17,33 @@ import {
 } from '@mui/material';
 import { CheckCircle, PlayArrow, Timer, Delete, ErrorOutline } from '@mui/icons-material';
 import { getTasks, saveTasks } from '../utils/storage';
+
+// Chaves para localStorage
+const COMPLETED_TASKS_KEY = 'leveling_completed_tasks';
+
+// Funções auxiliares para gerenciar tarefas concluídas
+const getCompletedTasks = () => {
+  const data = localStorage.getItem(COMPLETED_TASKS_KEY);
+  return data ? JSON.parse(data) : [];
+};
+
+const saveCompletedTasks = (completedTasks) => {
+  localStorage.setItem(COMPLETED_TASKS_KEY, JSON.stringify(completedTasks));
+};
+
+const addCompletedTask = (taskId) => {
+  const completedTasks = getCompletedTasks();
+  if (!completedTasks.includes(taskId)) {
+    completedTasks.push(taskId);
+    saveCompletedTasks(completedTasks);
+  }
+};
+
+const removeCompletedTask = (taskId) => {
+  const completedTasks = getCompletedTasks();
+  const filtered = completedTasks.filter(id => id !== taskId);
+  saveCompletedTasks(filtered);
+};
 import { addXP } from '../utils/levelSystem';
 import { saveNotification } from '../utils/storage';
 
@@ -26,16 +53,21 @@ const Tasks = ({ onTaskComplete }) => {
   const [confirmDialog, setConfirmDialog] = useState({ open: false, task: null });
   const [confirmText, setConfirmText] = useState('');
   const [activeTimers, setActiveTimers] = useState({});
+  const [completedTasks, setCompletedTasks] = useState([]);
 
   useEffect(() => {
     loadTasks();
+    loadCompletedTasks();
   }, []);
 
   const loadTasks = () => {
     const allTasks = getTasks();
-    // Mostrar apenas instâncias de tarefas (não templates)
-    const taskInstances = allTasks.filter(task => task.isInstance);
-    setTasks(taskInstances);
+    setTasks(allTasks);
+  };
+
+  const loadCompletedTasks = () => {
+    const completed = getCompletedTasks();
+    setCompletedTasks(completed);
   };
 
   useEffect(() => {
@@ -45,23 +77,29 @@ const Tasks = ({ onTaskComplete }) => {
       let needsUpdate = false;
       
       allTasks.forEach((task) => {
-        if (task.type === 'time' && task.startedAt && !task.completed) {
+        if (task.type === 'time' && task.startedAt) {
           const elapsed = Date.now() - new Date(task.startedAt).getTime();
           const remaining = task.duration * 1000 - elapsed;
           if (remaining > 0) {
             timers[task.id] = remaining;
           } else {
-            // Completar tarefa
-            const updatedTasks = allTasks.map((t) =>
-              t.id === task.id ? { ...t, completed: true, completedAt: new Date().toISOString() } : t
-            );
-            saveTasks(updatedTasks);
-            setTasks(updatedTasks);
-            // Compatibilidade: suporta tanto task.skills (array) quanto task.skill (string antiga)
+            // Completar tarefa por tempo automaticamente
             const skills = task.skills
               ? (Array.isArray(task.skills) ? task.skills : [task.skills])
               : (task.skill ? [task.skill] : null);
             addXP(task.xp, skills);
+
+            // Marcar tarefa como concluída permanentemente
+            addCompletedTask(task.id);
+            setCompletedTasks(prev => [...prev, task.id]);
+
+            // Resetar estado da tarefa (remover startedAt)
+            const updatedTasks = allTasks.map((t) =>
+              t.id === task.id ? { ...t, startedAt: null } : t
+            );
+            saveTasks(updatedTasks);
+            setTasks(updatedTasks);
+
             if (onTaskComplete) onTaskComplete();
             needsUpdate = true;
           }
@@ -94,19 +132,36 @@ const Tasks = ({ onTaskComplete }) => {
   const handleConfirmComplete = () => {
     if (confirmText.trim().toLowerCase() === 'concluido') {
       const task = confirmDialog.task;
-      const allTasks = getTasks();
-      const updatedTasks = allTasks.map((t) =>
-        t.id === task.id ? { ...t, completed: true, completedAt: new Date().toISOString() } : t
-      );
-      saveTasks(updatedTasks);
-      setTasks(updatedTasks);
 
+      // Templates são reutilizáveis - não marcar como concluídos permanentemente
+      // Apenas dar XP e mostrar feedback
 
       // Compatibilidade: suporta tanto task.skills (array) quanto task.skill (string antiga)
       const skills = task.skills
         ? (Array.isArray(task.skills) ? task.skills : [task.skills])
         : (task.skill ? [task.skill] : null);
       addXP(task.xp, skills);
+
+      // Marcar tarefa como concluída permanentemente
+      addCompletedTask(task.id);
+      setCompletedTasks(prev => [...prev, task.id]);
+
+      // Resetar estado da tarefa (remover startedAt se for tarefa por tempo)
+      if (task.type === 'time') {
+        const allTasks = getTasks();
+        const updatedTasks = allTasks.map((t) =>
+          t.id === task.id ? { ...t, startedAt: null } : t
+        );
+        saveTasks(updatedTasks);
+        setTasks(updatedTasks);
+        // Limpar timer ativo se existir
+        if (activeTimers[task.id]) {
+          const newTimers = { ...activeTimers };
+          delete newTimers[task.id];
+          setActiveTimers(newTimers);
+        }
+      }
+
       setConfirmDialog({ open: false, task: null });
       setConfirmText('');
       if (onTaskComplete) onTaskComplete();
@@ -124,8 +179,8 @@ const Tasks = ({ onTaskComplete }) => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const commonTasks = tasks.filter((t) => t.type === 'common');
-  const timeTasks = tasks.filter((t) => t.type === 'time');
+  const commonTasks = tasks.filter((t) => t.type === 'common' && t.active !== false);
+  const timeTasks = tasks.filter((t) => t.type === 'time' && t.active !== false);
 
   const skillNames = {
     strength: 'Força',
@@ -137,7 +192,9 @@ const Tasks = ({ onTaskComplete }) => {
 
   const renderTask = (task) => {
     const isTimeTask = task.type === 'time';
-    const isStarted = task.startedAt && !task.completed;
+    // Verificar se a tarefa está na lista de concluídas
+    const isCompleted = completedTasks.includes(task.id);
+    const isStarted = task.startedAt && !isCompleted;
     const remaining = activeTimers[task.id] || 0;
     const progress = isStarted ? ((task.duration * 1000 - remaining) / (task.duration * 1000)) * 100 : 0;
 
@@ -148,8 +205,8 @@ const Tasks = ({ onTaskComplete }) => {
           p: 2.5,
           mb: 2,
           backgroundColor: 'background.paper',
-          border: task.completed ? '1px solid rgba(0, 255, 136, 0.5)' : '1px solid rgba(0, 212, 255, 0.3)',
-          boxShadow: task.completed
+          border: isCompleted ? '1px solid rgba(0, 255, 136, 0.5)' : '1px solid rgba(0, 212, 255, 0.3)',
+          boxShadow: isCompleted
             ? '0 0 20px rgba(0, 255, 136, 0.2)'
             : '0 0 20px rgba(0, 212, 255, 0.1)',
         }}
@@ -159,14 +216,14 @@ const Tasks = ({ onTaskComplete }) => {
             variant="h6"
             sx={{
               flex: 1,
-              color: task.completed ? '#00FF88' : '#00D4FF',
-              textShadow: task.completed ? '0 0 10px #00FF88' : '0 0 5px #00D4FF',
+              color: isCompleted ? '#00FF88' : '#00D4FF',
+              textShadow: isCompleted ? '0 0 10px #00FF88' : '0 0 5px #00D4FF',
               fontWeight: 600,
             }}
           >
             -{task.title.toUpperCase()}
           </Typography>
-          {task.completed && (
+          {isCompleted && (
             <CheckCircle sx={{ color: '#00FF88', filter: 'drop-shadow(0 0 5px #00FF88)' }} />
           )}
         </Box>
@@ -215,7 +272,7 @@ const Tasks = ({ onTaskComplete }) => {
             />
           )}
         </Box>
-        {isTimeTask && isStarted && !task.completed && (
+        {isTimeTask && isStarted && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2" sx={{ mb: 1, color: '#00D4FF', fontWeight: 600 }}>
               Tempo restante: {formatTime(remaining)}
@@ -235,7 +292,7 @@ const Tasks = ({ onTaskComplete }) => {
             />
           </Box>
         )}
-        {!task.completed && (
+        {!isCompleted && (
           <Button
             variant="outlined"
             startIcon={isTimeTask ? (isStarted ? <Timer /> : <PlayArrow />) : <CheckCircle />}
