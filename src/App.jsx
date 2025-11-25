@@ -9,7 +9,7 @@ import Admin from './pages/Admin';
 import NotificationModal from './components/NotificationModal';
 import BlockedScreen from './components/BlockedScreen';
 import { isBlocked, setBlocked, getNotifications, saveNotification } from './utils/storage';
-import { resetDailyTasks, isNewDay, generateNewDailyTask } from './utils/taskManager';
+import { resetDailyTasks, isNewDay } from './utils/taskManager';
 import { getTasks } from './utils/storage';
 
 const theme = createTheme({

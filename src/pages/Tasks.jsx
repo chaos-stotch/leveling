@@ -16,13 +16,12 @@ import {
   Tab,
 } from '@mui/material';
 import { CheckCircle, PlayArrow, Timer, Delete, ErrorOutline } from '@mui/icons-material';
-import { getTasks, saveTasks, getDailyTask, saveDailyTask } from '../utils/storage';
+import { getTasks, saveTasks } from '../utils/storage';
 import { addXP } from '../utils/levelSystem';
 import { saveNotification } from '../utils/storage';
 
 const Tasks = ({ onTaskComplete }) => {
   const [tasks, setTasks] = useState([]);
-  const [dailyTask, setDailyTask] = useState(null);
   const [tabValue, setTabValue] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, task: null });
   const [confirmText, setConfirmText] = useState('');
@@ -30,17 +29,13 @@ const Tasks = ({ onTaskComplete }) => {
 
   useEffect(() => {
     loadTasks();
-    loadDailyTask();
   }, []);
 
   const loadTasks = () => {
     const allTasks = getTasks();
-    setTasks(allTasks);
-  };
-
-  const loadDailyTask = () => {
-    const daily = getDailyTask();
-    setDailyTask(daily);
+    // Mostrar apenas instâncias de tarefas (não templates)
+    const taskInstances = allTasks.filter(task => task.isInstance);
+    setTasks(taskInstances);
   };
 
   useEffect(() => {
@@ -106,10 +101,6 @@ const Tasks = ({ onTaskComplete }) => {
       saveTasks(updatedTasks);
       setTasks(updatedTasks);
 
-      if (task.isDailyTask) {
-        saveDailyTask({ ...task, completed: true });
-        setDailyTask({ ...task, completed: true });
-      }
 
       // Compatibilidade: suporta tanto task.skills (array) quanto task.skill (string antiga)
       const skills = task.skills
@@ -133,8 +124,8 @@ const Tasks = ({ onTaskComplete }) => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const commonTasks = tasks.filter((t) => t.type === 'common' && !t.isDailyTask);
-  const timeTasks = tasks.filter((t) => t.type === 'time' && !t.isDailyTask);
+  const commonTasks = tasks.filter((t) => t.type === 'common');
+  const timeTasks = tasks.filter((t) => t.type === 'time');
 
   const skillNames = {
     strength: 'Força',
@@ -325,7 +316,6 @@ const Tasks = ({ onTaskComplete }) => {
       >
         <Tab label="Tarefas Comuns" />
         <Tab label="Tarefas por Tempo" />
-        <Tab label="Tarefa Diária" />
       </Tabs>
 
       {tabValue === 0 && (
@@ -352,115 +342,6 @@ const Tasks = ({ onTaskComplete }) => {
         </Box>
       )}
 
-      {tabValue === 2 && (
-        <Box>
-          {dailyTask ? (
-            <Paper
-              sx={{
-                p: 3,
-                mb: 2,
-                backgroundColor: dailyTask.completed ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 0, 0, 0.1)',
-                border: dailyTask.completed
-                  ? '2px solid rgba(0, 255, 136, 0.5)'
-                  : '2px solid rgba(255, 0, 0, 0.5)',
-                boxShadow: dailyTask.completed
-                  ? '0 0 30px rgba(0, 255, 136, 0.3), inset 0 0 30px rgba(0, 255, 136, 0.05)'
-                  : '0 0 30px rgba(255, 0, 0, 0.3), inset 0 0 30px rgba(255, 0, 0, 0.05)',
-              }}
-            >
-              <Typography
-                variant="h5"
-                gutterBottom
-                sx={{
-                  fontWeight: 'bold',
-                  color: dailyTask.completed ? '#00FF88' : '#FF0000',
-                  textShadow: dailyTask.completed
-                    ? '0 0 10px #00FF88, 0 0 20px #00FF88'
-                    : '0 0 10px #FF0000, 0 0 20px #FF0000',
-                  textTransform: 'uppercase',
-                  letterSpacing: '2px',
-                }}
-              >
-                DAILY QUEST - {dailyTask.title.toUpperCase()}
-              </Typography>
-              <Typography variant="body1" sx={{ mb: 2, color: '#B0E0FF', lineHeight: 1.8 }}>
-                {dailyTask.description}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-                <Chip
-                  label={`${dailyTask.xp} XP`}
-                  size="small"
-                  sx={{
-                    backgroundColor: 'rgba(0, 212, 255, 0.2)',
-                    color: '#00D4FF',
-                    border: '1px solid rgba(0, 212, 255, 0.5)',
-                  }}
-                />
-                {(() => {
-                  // Compatibilidade: suporta tanto dailyTask.skills (array) quanto dailyTask.skill (string antiga)
-                  const skills = dailyTask.skills
-                    ? (Array.isArray(dailyTask.skills) ? dailyTask.skills : [dailyTask.skills])
-                    : (dailyTask.skill ? [dailyTask.skill] : []);
-                  
-                  return skills.map((skill) => (
-                    <Chip
-                      key={skill}
-                      label={skillNames[skill]}
-                      size="small"
-                      sx={{
-                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                        color: '#B0E0FF',
-                        border: '1px solid rgba(0, 212, 255, 0.3)',
-                      }}
-                    />
-                  ));
-                })()}
-              </Box>
-              {!dailyTask.completed && (
-                <>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      mb: 2,
-                      color: '#FF0000',
-                      fontWeight: 'bold',
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      textShadow: '0 0 5px #FF0000',
-                    }}
-                  >
-                    CAUTION! - IF THE DAILY QUEST REMAINS INCOMPLETE, PENALTIES WILL BE GIVEN ACCORDINGLY.
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    startIcon={<CheckCircle />}
-                    onClick={() => handleCompleteClick(dailyTask)}
-                    fullWidth
-                    sx={{
-                      borderColor: '#FF0000',
-                      color: '#FF0000',
-                      borderWidth: '2px',
-                      textTransform: 'uppercase',
-                      fontWeight: 600,
-                      '&:hover': {
-                        borderColor: '#FF0000',
-                        backgroundColor: 'rgba(255, 0, 0, 0.1)',
-                        boxShadow: '0 0 20px rgba(255, 0, 0, 0.5)',
-                      },
-                    }}
-                  >
-                    Concluir Tarefa Diária
-                  </Button>
-                </>
-              )}
-            </Paper>
-          ) : (
-            <Typography sx={{ color: '#6B7A99', textAlign: 'center', py: 4 }}>
-              Nenhuma tarefa diária disponível
-            </Typography>
-          )}
-        </Box>
-      )}
 
       <Dialog
         open={confirmDialog.open}

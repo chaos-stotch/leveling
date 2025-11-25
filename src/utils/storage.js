@@ -3,7 +3,6 @@ const STORAGE_KEYS = {
   PLAYER_DATA: 'leveling_player_data',
   TASKS: 'leveling_tasks',
   NOTIFICATIONS: 'leveling_notifications',
-  DAILY_TASK: 'leveling_daily_task',
   LAST_DAILY_RESET: 'leveling_last_daily_reset',
   BLOCKED: 'leveling_blocked',
 };
@@ -58,18 +57,6 @@ export const saveNotification = (notification) => {
   localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
 };
 
-export const getDailyTask = () => {
-  const data = localStorage.getItem(STORAGE_KEYS.DAILY_TASK);
-  return data ? JSON.parse(data) : null;
-};
-
-export const saveDailyTask = (task) => {
-  if (task) {
-    localStorage.setItem(STORAGE_KEYS.DAILY_TASK, JSON.stringify(task));
-  } else {
-    localStorage.removeItem(STORAGE_KEYS.DAILY_TASK);
-  }
-};
 
 export const getLastDailyReset = () => {
   const data = localStorage.getItem(STORAGE_KEYS.LAST_DAILY_RESET);

@@ -22,7 +22,7 @@ import {
   Card,
   CardContent,
 } from '@mui/material';
-import { Add, Delete, Edit, AddCircle, RemoveCircle } from '@mui/icons-material';
+import { Add, Delete, Edit, AddCircle, RemoveCircle, ToggleOn, ToggleOff } from '@mui/icons-material';
 import { getTasks, saveTasks, getPlayerData, savePlayerData } from '../utils/storage';
 
 const Admin = () => {
@@ -35,10 +35,8 @@ const Admin = () => {
     xp: 10,
     skills: [],
     duration: 60,
-    replaceAtEndOfDay: false,
-    isDaily: false,
-    daysOfWeek: [],
-    canBeDaily: false,
+    enabled: true, // Se aparece na tela de tarefas
+    permanent: false, // Se é permanente (só some quando concluída ou desabilitada)
   });
   const [editDialog, setEditDialog] = useState({ open: false, task: null });
 
@@ -48,7 +46,30 @@ const Admin = () => {
   }, []);
 
   const loadTasks = () => {
-    const allTasks = getTasks();
+    let allTasks = getTasks();
+
+    // Migração: adicionar campos novos para tarefas existentes
+    let needsMigration = false;
+    allTasks = allTasks.map(task => {
+      if (task.enabled === undefined) {
+        task.enabled = true;
+        needsMigration = true;
+      }
+      if (task.permanent === undefined) {
+        task.permanent = false;
+        needsMigration = true;
+      }
+      if (task.isInstance === undefined) {
+        task.isInstance = false;
+        needsMigration = true;
+      }
+      return task;
+    });
+
+    if (needsMigration) {
+      saveTasks(allTasks);
+    }
+
     setTasks(allTasks);
   };
 
@@ -61,12 +82,6 @@ const Admin = () => {
     setFormData({ ...formData, [field]: value });
   };
 
-  const handleDaysChange = (day) => {
-    const days = formData.daysOfWeek.includes(day)
-      ? formData.daysOfWeek.filter((d) => d !== day)
-      : [...formData.daysOfWeek, day];
-    setFormData({ ...formData, daysOfWeek: days });
-  };
 
   const handleSkillChange = (skill) => {
     const skills = formData.skills.includes(skill)
@@ -84,6 +99,7 @@ const Admin = () => {
     const newTask = {
       id: Date.now(),
       ...formData,
+      isInstance: false, // É um template
       completed: false,
     };
 
@@ -107,10 +123,8 @@ const Admin = () => {
       xp: task.xp,
       skills: skills,
       duration: task.duration || 60,
-      replaceAtEndOfDay: task.replaceAtEndOfDay || false,
-      isDaily: task.isDaily || false,
-      daysOfWeek: task.daysOfWeek || [],
-      canBeDaily: task.canBeDaily || false,
+      enabled: task.enabled !== undefined ? task.enabled : true,
+      permanent: task.permanent || false,
     });
   };
 
@@ -140,10 +154,8 @@ const Admin = () => {
       xp: 10,
       skills: [],
       duration: 60,
-      replaceAtEndOfDay: false,
-      isDaily: false,
-      daysOfWeek: [],
-      canBeDaily: false,
+      enabled: true,
+      permanent: false,
     });
   };
 
@@ -187,15 +199,14 @@ const Admin = () => {
     setPlayerData(updatedData);
   };
 
-  const daysOfWeek = [
-    { value: 0, label: 'Domingo' },
-    { value: 1, label: 'Segunda' },
-    { value: 2, label: 'Terça' },
-    { value: 3, label: 'Quarta' },
-    { value: 4, label: 'Quinta' },
-    { value: 5, label: 'Sexta' },
-    { value: 6, label: 'Sábado' },
-  ];
+  const toggleTaskEnabled = (taskId) => {
+    const updatedTasks = tasks.map((t) =>
+      t.id === taskId ? { ...t, enabled: !t.enabled } : t
+    );
+    saveTasks(updatedTasks);
+    setTasks(updatedTasks);
+  };
+
 
   const skillNames = {
     strength: 'Força',
@@ -345,55 +356,26 @@ const Admin = () => {
               />
             </Grid>
           )}
-          <Grid item xs={12}>
+          <Grid item xs={12} sm={6}>
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={formData.replaceAtEndOfDay}
-                  onChange={(e) => handleInputChange('replaceAtEndOfDay', e.target.checked)}
+                  checked={formData.enabled}
+                  onChange={(e) => handleInputChange('enabled', e.target.checked)}
                 />
               }
-              label="Substituir ao final do dia (tarefas não finalizadas serão deletadas)"
+              label="Habilitada (aparece na tela de tarefas)"
             />
           </Grid>
-          <Grid item xs={12}>
+          <Grid item xs={12} sm={6}>
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={formData.isDaily}
-                  onChange={(e) => handleInputChange('isDaily', e.target.checked)}
+                  checked={formData.permanent}
+                  onChange={(e) => handleInputChange('permanent', e.target.checked)}
                 />
               }
-              label="Tarefa Quotidiana (aparecerá nos dias selecionados)"
-            />
-          </Grid>
-          {formData.isDaily && (
-            <Grid item xs={12}>
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                Dias da semana:
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {daysOfWeek.map((day) => (
-                  <Chip
-                    key={day.value}
-                    label={day.label}
-                    onClick={() => handleDaysChange(day.value)}
-                    color={formData.daysOfWeek.includes(day.value) ? 'primary' : 'default'}
-                    variant={formData.daysOfWeek.includes(day.value) ? 'filled' : 'outlined'}
-                  />
-                ))}
-              </Box>
-            </Grid>
-          )}
-          <Grid item xs={12}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.canBeDaily}
-                  onChange={(e) => handleInputChange('canBeDaily', e.target.checked)}
-                />
-              }
-              label="Pode ser selecionada como Tarefa Diária aleatória"
+              label="Permanente (só some quando concluída ou desabilitada)"
             />
           </Grid>
           <Grid item xs={12}>
@@ -498,39 +480,24 @@ const Admin = () => {
                       />
                     ));
                   })()}
-                  {task.replaceAtEndOfDay && (
-                    <Chip
-                      label="Substitui ao final do dia"
-                      size="small"
-                      sx={{
-                        backgroundColor: 'rgba(255, 193, 7, 0.2)',
-                        color: '#FFC107',
-                        border: '1px solid rgba(255, 193, 7, 0.5)',
-                      }}
-                    />
-                  )}
-                  {task.isDaily && (
-                    <Chip
-                      label="Quotidiana"
-                      size="small"
-                      sx={{
-                        backgroundColor: 'rgba(33, 150, 243, 0.2)',
-                        color: '#2196F3',
-                        border: '1px solid rgba(33, 150, 243, 0.5)',
-                      }}
-                    />
-                  )}
-                  {task.canBeDaily && (
-                    <Chip
-                      label="Pode ser diária"
-                      size="small"
-                      sx={{
-                        backgroundColor: 'rgba(0, 255, 136, 0.2)',
-                        color: '#00FF88',
-                        border: '1px solid rgba(0, 255, 136, 0.5)',
-                      }}
-                    />
-                  )}
+                  <Chip
+                    label={task.enabled ? 'Habilitada' : 'Desabilitada'}
+                    size="small"
+                    sx={{
+                      backgroundColor: task.enabled ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 107, 107, 0.2)',
+                      color: task.enabled ? '#00FF88' : '#FF6B6B',
+                      border: `1px solid ${task.enabled ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 107, 107, 0.5)'}`,
+                    }}
+                  />
+                  <Chip
+                    label={task.permanent ? 'Permanente' : 'Temporária'}
+                    size="small"
+                    sx={{
+                      backgroundColor: task.permanent ? 'rgba(33, 150, 243, 0.2)' : 'rgba(255, 193, 7, 0.2)',
+                      color: task.permanent ? '#2196F3' : '#FFC107',
+                      border: `1px solid ${task.permanent ? 'rgba(33, 150, 243, 0.5)' : 'rgba(255, 193, 7, 0.5)'}`,
+                    }}
+                  />
                 </Box>
               </Box>
               <Box>
@@ -545,6 +512,18 @@ const Admin = () => {
                   }}
                 >
                   <Edit />
+                </IconButton>
+                <IconButton
+                  onClick={() => toggleTaskEnabled(task.id)}
+                  sx={{
+                    color: task.enabled ? '#00FF88' : '#FF6B6B',
+                    '&:hover': {
+                      backgroundColor: task.enabled ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 107, 107, 0.1)',
+                      boxShadow: task.enabled ? '0 0 10px rgba(0, 255, 136, 0.5)' : '0 0 10px rgba(255, 107, 107, 0.5)',
+                    },
+                  }}
+                >
+                  {task.enabled ? <ToggleOn /> : <ToggleOff />}
                 </IconButton>
                 <IconButton
                   onClick={() => handleDelete(task.id)}
@@ -669,8 +648,25 @@ const Admin = () => {
               })}
             </Grid>
           </Grid>
-
           <Divider sx={{ my: 3, borderColor: 'rgba(0, 212, 255, 0.3)' }} />
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+            <Button
+              variant="contained"
+              onClick={resetXP}
+              sx={{
+                backgroundColor: '#FF4B4B',
+                color: '#fff',
+                fontWeight: 600,
+                boxShadow: 2,
+                '&:hover': {
+                  backgroundColor: '#D32F2F',
+                },
+              }}
+            >
+              Resetar XP do Jogador
+            </Button>
+          </Box>
+
         </Paper>
       )}
     </Box>

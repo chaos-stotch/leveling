@@ -1,4 +1,4 @@
-import { getTasks, saveTasks, getDailyTask, saveDailyTask, getLastDailyReset, saveLastDailyReset, setBlocked } from './storage';
+import { getTasks, saveTasks, getLastDailyReset, saveLastDailyReset, setBlocked } from './storage';
 
 // Verificar se é um novo dia
 export const isNewDay = () => {
@@ -18,97 +18,55 @@ export const isPastMidnight = () => {
   return now.getHours() === 0 && now.getMinutes() === 0;
 };
 
-// Resetar tarefas diárias
+// Resetar tarefas - lógica simplificada
 export const resetDailyTasks = (allTasks) => {
   const now = new Date();
 
-  // Verificar tarefa diária e bloqueio
-  const dailyTask = getDailyTask();
-  if (dailyTask && !dailyTask.completed) {
-    // Se a tarefa diária não foi completada, bloquear o app
-    setBlocked(true);
-  } else {
-    setBlocked(false);
-  }
+  // Separar templates de instâncias
+  const templates = allTasks.filter(task => !task.isInstance);
+  const instances = allTasks.filter(task => task.isInstance);
 
-  // Filtrar tarefas para manter - lógica simplificada e corrigida
-  const tasksToKeep = allTasks.filter(task => {
-    // Sempre manter tarefas base (templates) de tarefas quotidianas
-    if (task.isDaily && !task.isDailyInstance) {
-      return true;
+  // Nova lista de tarefas: começar com todos os templates
+  let tasksToKeep = [...templates];
+
+  // Para cada template habilitado, criar uma instância não realizada se não existir
+  templates.forEach(template => {
+    if (template.enabled) {
+      // Verificar se já existe uma instância não completada desta tarefa
+      const existingInstance = instances.find(instance =>
+        instance.templateId === template.id && !instance.completed
+      );
+
+      if (!existingInstance) {
+        tasksToKeep.push({
+          ...template,
+          id: Date.now() + Math.random(),
+          templateId: template.id,
+          isInstance: true,
+          completed: false,
+          completedAt: null,
+          startedAt: null,
+        });
+      } else {
+        // Manter a instância existente se não estiver concluída
+        tasksToKeep.push(existingInstance);
+      }
     }
-
-    // Sempre remover tarefas completadas (independentemente de quando foram completadas)
-    if (task.completed) {
-      return false;
-    }
-
-    // Remover tarefas não completadas que devem ser substituídas ao final do dia
-    if (task.replaceAtEndOfDay) {
-      return false;
-    }
-
-    // Manter tarefas comuns não completadas que não devem ser substituídas
-    return true;
   });
 
-  // Adicionar novas instâncias de tarefas quotidianas para o dia atual
-  const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Segunda, etc.
-  const dailyTaskTemplates = allTasks.filter(task => task.isDaily && !task.isDailyInstance && task.daysOfWeek?.includes(dayOfWeek));
-
-  dailyTaskTemplates.forEach(task => {
-    // Verificar se já existe uma instância não completada desta tarefa
-    const existingInstance = tasksToKeep.find(t =>
-      t.isDailyInstance &&
-      t.title === task.title &&
-      !t.completed
-    );
-
-    if (!existingInstance) {
-      tasksToKeep.push({
-        ...task,
-        id: Date.now() + Math.random(),
-        completed: false,
-        completedAt: null,
-        startedAt: null,
-        isDailyInstance: true,
-      });
+  // Manter instâncias permanentes concluídas (elas só desaparecem quando desabilitadas no admin)
+  instances.forEach(instance => {
+    const template = templates.find(t => t.id === instance.templateId);
+    if (template && template.permanent && instance.completed && template.enabled) {
+      tasksToKeep.push(instance);
     }
   });
 
   saveTasks(tasksToKeep);
   saveLastDailyReset(now);
 
-  // Gerar nova tarefa diária se necessário
-  if (!dailyTask || dailyTask.completed || isNewDay()) {
-    generateNewDailyTask(allTasks);
-  }
-
   return tasksToKeep;
 };
 
-// Gerar nova tarefa diária aleatória
-export const generateNewDailyTask = (allTasks) => {
-  // Buscar tarefas marcadas como possíveis tarefas diárias
-  const possibleDailyTasks = allTasks.filter(task => task.canBeDaily);
-  
-  if (possibleDailyTasks.length > 0) {
-    const randomTask = possibleDailyTasks[Math.floor(Math.random() * possibleDailyTasks.length)];
-    saveDailyTask({
-      ...randomTask,
-      id: Date.now(),
-      isDailyTask: true,
-      completed: false,
-      createdAt: new Date().toISOString(),
-    });
-  }
-};
 
-// Verificar se é o dia da semana correto para tarefa diária
-export const isTaskDay = (task) => {
-  if (!task.isDaily || !task.daysOfWeek) return true;
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  return task.daysOfWeek.includes(dayOfWeek);
-};
 
