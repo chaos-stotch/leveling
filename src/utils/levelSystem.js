@@ -1,7 +1,7 @@
 import { getPlayerData, savePlayerData, getXPForNextLevel, getSkillXPForNextLevel, saveNotification } from './storage';
 
 // Adicionar XP e verificar level up
-export const addXP = (amount, skillNames = null) => {
+export const addXP = (amount, skillNames = null, playSound = null) => {
   const playerData = getPlayerData();
   const levelUps = [];
   const skillLevelUps = [];
@@ -57,13 +57,14 @@ export const addXP = (amount, skillNames = null) => {
   const notificationsToSave = [];
   
   // Criar notificações para cada level up geral
-  levelUps.forEach((level) => {
+  levelUps.forEach((level, index) => {
     notificationsToSave.push({
       type: 'level_up',
       title: 'Level Up!',
       message: `Parabéns! Você subiu para o nível ${level}!`,
       level: level,
       priority: 0, // Level geral tem prioridade 0
+      sound: 'success' // Som será tocado quando a notificação aparecer
     });
   });
   
@@ -77,7 +78,7 @@ export const addXP = (amount, skillNames = null) => {
       persistence: 'Persistência',
     };
     
-    skillLevelUps.forEach(({ skill, level }) => {
+    skillLevelUps.forEach(({ skill, level }, index) => {
       notificationsToSave.push({
         type: 'skill_level_up',
         title: 'Habilidade Melhorada!',
@@ -85,6 +86,7 @@ export const addXP = (amount, skillNames = null) => {
         skill: skill,
         level: level,
         priority: 1, // Habilidades têm prioridade 1 (aparecem depois)
+        sound: 'computer-processing' // Som será tocado quando a notificação aparecer
       });
     });
   }

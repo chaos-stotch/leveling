@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import { CheckCircle, PlayArrow, Timer, Delete, ErrorOutline } from '@mui/icons-material';
 import { getTasks, saveTasks } from '../utils/storage';
+import { useSound } from '../hooks/useSound';
 
 // Chaves para localStorage
 const COMPLETED_TASKS_KEY = 'leveling_completed_tasks';
@@ -54,6 +55,7 @@ const Tasks = ({ onTaskComplete }) => {
   const [confirmText, setConfirmText] = useState('');
   const [activeTimers, setActiveTimers] = useState({});
   const [completedTasks, setCompletedTasks] = useState([]);
+  const { playSound } = useSound();
 
   useEffect(() => {
     loadTasks();
@@ -87,7 +89,10 @@ const Tasks = ({ onTaskComplete }) => {
             const skills = task.skills
               ? (Array.isArray(task.skills) ? task.skills : [task.skills])
               : (task.skill ? [task.skill] : null);
-            addXP(task.xp, skills);
+            addXP(task.xp, skills, playSound);
+
+            // Tocar som de timer do microondas
+            playSound('microwave-timer');
 
             // Marcar tarefa como concluída permanentemente
             addCompletedTask(task.id);
@@ -122,6 +127,9 @@ const Tasks = ({ onTaskComplete }) => {
     saveTasks(updatedTasks);
     setTasks(updatedTasks);
     setActiveTimers({ ...activeTimers, [task.id]: task.duration * 1000 });
+
+    // Tocar som de startup VHS
+    playSound('vhs-startup');
   };
 
   const handleCompleteClick = (task) => {
@@ -140,7 +148,10 @@ const Tasks = ({ onTaskComplete }) => {
       const skills = task.skills
         ? (Array.isArray(task.skills) ? task.skills : [task.skills])
         : (task.skill ? [task.skill] : null);
-      addXP(task.xp, skills);
+      addXP(task.xp, skills, playSound);
+
+      // Tocar som de power down
+      playSound('power-down');
 
       // Marcar tarefa como concluída permanentemente
       addCompletedTask(task.id);

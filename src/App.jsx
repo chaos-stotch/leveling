@@ -8,6 +8,8 @@ import NotificationsPage from './pages/Notifications';
 import Admin from './pages/Admin';
 import NotificationModal from './components/NotificationModal';
 import BlockedScreen from './components/BlockedScreen';
+import ClickSoundProvider from './components/ClickSoundProvider';
+import { useSound } from './hooks/useSound';
 import { isBlocked, getNotifications } from './utils/storage';
 
 const theme = createTheme({
@@ -175,6 +177,7 @@ function App() {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationQueue, setNotificationQueue] = useState([]);
   const [lastNotificationCheck, setLastNotificationCheck] = useState(Date.now());
+  const { playSound } = useSound();
 
   useEffect(() => {
     // Verificar se está bloqueado
@@ -218,6 +221,13 @@ function App() {
     }
   }, [notificationQueue, showNotification]);
 
+  // Tocar som quando uma notificação aparece
+  useEffect(() => {
+    if (notification && notification.sound) {
+      playSound(notification.sound);
+    }
+  }, [notification, playSound]);
+
 
   const handleCloseNotification = () => {
     setShowNotification(false);
@@ -245,33 +255,35 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Box sx={{ pb: 7, minHeight: '100vh', backgroundColor: 'background.default' }}>
-        {pages[currentPage].component}
-      </Box>
-      <BottomNavigation
-        value={currentPage}
-        onChange={(event, newValue) => {
-          setCurrentPage(newValue);
-        }}
-        showLabels
-        sx={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          borderTop: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        {pages.map((page, index) => (
-          <BottomNavigationAction key={index} label={page.label} icon={page.icon} />
-        ))}
-      </BottomNavigation>
-      <NotificationModal
-        open={showNotification}
-        notification={notification}
-        onClose={handleCloseNotification}
-      />
+      <ClickSoundProvider>
+        <Box sx={{ pb: 7, minHeight: '100vh', backgroundColor: 'background.default' }}>
+          {pages[currentPage].component}
+        </Box>
+        <BottomNavigation
+          value={currentPage}
+          onChange={(event, newValue) => {
+            setCurrentPage(newValue);
+          }}
+          showLabels
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          {pages.map((page, index) => (
+            <BottomNavigationAction key={index} label={page.label} icon={page.icon} />
+          ))}
+        </BottomNavigation>
+        <NotificationModal
+          open={showNotification}
+          notification={notification}
+          onClose={handleCloseNotification}
+        />
+      </ClickSoundProvider>
     </ThemeProvider>
   );
 }
