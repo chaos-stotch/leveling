@@ -101,8 +101,6 @@ const SortableTaskItem = ({
     <Paper
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
       sx={{
         p: 2.5,
         mb: 2,
@@ -113,8 +111,6 @@ const SortableTaskItem = ({
           : '0 0 20px rgba(0, 212, 255, 0.1)',
         cursor: isDragging ? 'grabbing' : 'grab',
         position: 'relative',
-        touchAction: 'none', // Importante para mobile - previne scroll padrão
-        userSelect: 'none', // Evita seleção de texto durante drag
         '&:hover': {
           boxShadow: isCompleted
             ? '0 0 25px rgba(0, 255, 136, 0.3)'
@@ -122,14 +118,24 @@ const SortableTaskItem = ({
         },
       }}
     >
-      {/* Handle de arrastar - agora opcional, pode arrastar de qualquer lugar */}
+      {/* Handle de arrastar */}
       <Box
+        {...attributes}
+        {...listeners}
         sx={{
           position: 'absolute',
           top: 8,
           right: 8,
+          cursor: 'grab',
           color: '#6B7A99',
-          opacity: 0.7,
+          touchAction: 'none', // Só no handle para não interferir com cliques no card
+          userSelect: 'none',
+          '&:hover': {
+            color: '#00D4FF',
+          },
+          '&:active': {
+            cursor: 'grabbing',
+          },
         }}
       >
         <DragIndicator />
@@ -259,8 +265,17 @@ const Tasks = ({ onTaskComplete }) => {
 
   // Configuração dos sensores para drag and drop
   const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(TouchSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 3, // Distância mínima menor para desktop
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 100, // Delay menor para mobile
+        tolerance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
