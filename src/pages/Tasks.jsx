@@ -16,7 +16,7 @@ import {
   Tab,
   useTheme,
 } from '@mui/material';
-import { CheckCircle, PlayArrow, Timer, Delete, ErrorOutline, DragIndicator } from '@mui/icons-material';
+import { CheckCircle, PlayArrow, Timer, Delete, ErrorOutline, DragIndicator, Visibility, Close } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
@@ -75,6 +75,7 @@ const SortableTaskItem = ({
   task,
   onCompleteClick,
   onStartTimeTask,
+  onFocusClick,
   isCompleted,
   isStarted,
   remaining,
@@ -153,17 +154,40 @@ const SortableTaskItem = ({
       </Box>
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1.5, pr: 4 }}>
-        <Typography
-          variant="h6"
-          sx={{
-            flex: 1,
-            color: isCompleted ? secondaryColor : textPrimary,
-            textShadow: isCompleted ? `0 0 10px ${secondaryColor}` : `0 0 5px ${primaryColor}`,
-            fontWeight: 600,
-          }}
-        >
-          -{task.title.toUpperCase()}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+          <Typography
+            variant="h6"
+            sx={{
+              flex: 1,
+              color: isCompleted ? secondaryColor : textPrimary,
+              textShadow: isCompleted ? `0 0 10px ${secondaryColor}` : `0 0 5px ${primaryColor}`,
+              fontWeight: 600,
+            }}
+          >
+            -{task.title.toUpperCase()}
+          </Typography>
+          {!isCompleted && (
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                onFocusClick(task);
+              }}
+              size="small"
+              sx={{
+                color: textSecondary,
+                opacity: 0.7,
+                '&:hover': {
+                  color: primaryColor,
+                  opacity: 1,
+                  backgroundColor: `${primaryColor}1A`,
+                  boxShadow: `0 0 10px ${primaryColor}80`,
+                },
+              }}
+            >
+              <Visibility />
+            </IconButton>
+          )}
+        </Box>
         {isCompleted && (
           <CheckCircle sx={{ color: secondaryColor, filter: `drop-shadow(0 0 5px ${secondaryColor})` }} />
         )}
@@ -283,6 +307,7 @@ const Tasks = ({ onTaskComplete }) => {
   const [activeTimers, setActiveTimers] = useState({});
   const [completedTasks, setCompletedTasks] = useState([]);
   const [activeId, setActiveId] = useState(null);
+  const [focusedTask, setFocusedTask] = useState(null);
   const { playSound } = useSound();
 
   // Configuração dos sensores para drag and drop
@@ -443,6 +468,10 @@ const Tasks = ({ onTaskComplete }) => {
           const remaining = task.duration * 1000 - elapsed;
           if (remaining > 0) {
             timers[task.id] = remaining;
+            // Atualizar focusedTask se for a tarefa em foco
+            if (focusedTask && focusedTask.id === task.id) {
+              setFocusedTask({ ...task });
+            }
           } else {
             // Completar tarefa por tempo automaticamente
             const skills = task.skills
@@ -464,6 +493,11 @@ const Tasks = ({ onTaskComplete }) => {
             saveTasks(updatedTasks);
             setTasks(updatedTasks);
 
+            // Fechar modal de foco se a tarefa focada foi concluída
+            if (focusedTask && focusedTask.id === task.id) {
+              setFocusedTask(null);
+            }
+
             if (onTaskComplete) onTaskComplete();
             needsUpdate = true;
           }
@@ -475,7 +509,7 @@ const Tasks = ({ onTaskComplete }) => {
 
     const interval = setInterval(checkTimers, 1000);
     return () => clearInterval(interval);
-  }, [onTaskComplete]);
+  }, [onTaskComplete, focusedTask]);
 
 
   const startTimeTask = (task) => {
@@ -487,6 +521,11 @@ const Tasks = ({ onTaskComplete }) => {
     setTasks(updatedTasks);
     setActiveTimers({ ...activeTimers, [task.id]: task.duration * 1000 });
 
+    // Se a tarefa estiver focada, atualizar o estado para mostrar o timer
+    if (focusedTask && focusedTask.id === task.id) {
+      setFocusedTask({ ...task, startedAt: new Date().toISOString() });
+    }
+
     // Tocar som de startup VHS
     playSound('vhs-startup');
   };
@@ -494,6 +533,14 @@ const Tasks = ({ onTaskComplete }) => {
   const handleCompleteClick = (task) => {
     setConfirmDialog({ open: true, task });
     setConfirmText('');
+  };
+
+  const handleFocusClick = (task) => {
+    setFocusedTask(task);
+  };
+
+  const handleCloseFocus = () => {
+    setFocusedTask(null);
   };
 
   const handleConfirmComplete = () => {
@@ -657,6 +704,7 @@ const Tasks = ({ onTaskComplete }) => {
                           task={task}
                           onCompleteClick={handleCompleteClick}
                           onStartTimeTask={startTimeTask}
+                          onFocusClick={handleFocusClick}
                           isCompleted={completedTasks.includes(task.id)}
                           isStarted={task.startedAt && !completedTasks.includes(task.id)}
                           remaining={activeTimers[task.id] || 0}
@@ -677,6 +725,7 @@ const Tasks = ({ onTaskComplete }) => {
                     task={tasks.find(t => t.id === activeId)}
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
+                    onFocusClick={() => {}}
                     isCompleted={completedTasks.includes(activeId)}
                     isStarted={false}
                     remaining={0}
@@ -722,6 +771,7 @@ const Tasks = ({ onTaskComplete }) => {
                           task={task}
                           onCompleteClick={handleCompleteClick}
                           onStartTimeTask={startTimeTask}
+                          onFocusClick={handleFocusClick}
                           isCompleted={completedTasks.includes(task.id)}
                           isStarted={task.startedAt && !completedTasks.includes(task.id)}
                           remaining={activeTimers[task.id] || 0}
@@ -742,6 +792,7 @@ const Tasks = ({ onTaskComplete }) => {
                     task={tasks.find(t => t.id === activeId)}
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
+                    onFocusClick={() => {}}
                     isCompleted={completedTasks.includes(activeId)}
                     isStarted={false}
                     remaining={0}
@@ -756,6 +807,298 @@ const Tasks = ({ onTaskComplete }) => {
         )}
       </AnimatePresence>
 
+      {/* Modal de foco fullscreen */}
+      <Dialog
+        open={focusedTask !== null}
+        onClose={handleCloseFocus}
+        fullScreen
+        PaperProps={{
+          component: motion.div,
+          initial: { opacity: 0, scale: 0.95 },
+          animate: { opacity: 1, scale: 1 },
+          exit: { opacity: 0, scale: 0.95 },
+          transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] },
+          sx: {
+            backgroundColor: 'background.default',
+            backgroundImage: theme.palette.mode === 'dark' 
+              ? `linear-gradient(135deg, ${primaryColor}08 0%, transparent 100%)`
+              : 'none',
+            m: 0,
+            p: 0,
+          },
+        }}
+      >
+        {focusedTask && (
+          <Box
+            sx={{
+              height: '100vh',
+              display: 'flex',
+              flexDirection: 'column',
+              p: 4,
+              position: 'relative',
+            }}
+          >
+            {/* Botão de fechar */}
+            <IconButton
+              onClick={handleCloseFocus}
+              sx={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                color: textSecondary,
+                opacity: 0.7,
+                '&:hover': {
+                  color: textPrimary,
+                  opacity: 1,
+                  backgroundColor: `${primaryColor}1A`,
+                  boxShadow: `0 0 15px ${primaryColor}80`,
+                },
+              }}
+            >
+              <Close />
+            </IconButton>
+
+            {/* Conteúdo da tarefa */}
+            <Box
+              sx={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                maxWidth: '800px',
+                mx: 'auto',
+                width: '100%',
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+              >
+                <Paper
+                  sx={{
+                    p: 6,
+                    backgroundColor: 'background.paper',
+                    border: completedTasks.includes(focusedTask.id)
+                      ? `2px solid ${theme.palette.secondary.main}80`
+                      : `2px solid ${primaryColor}80`,
+                    boxShadow: completedTasks.includes(focusedTask.id)
+                      ? `0 0 40px ${theme.palette.secondary.main}33`
+                      : `0 0 40px ${primaryColor}33`,
+                    borderRadius: 4,
+                  }}
+                >
+                  <Box sx={{ mb: 4, textAlign: 'center' }}>
+                    {completedTasks.includes(focusedTask.id) && (
+                      <CheckCircle
+                        sx={{
+                          color: theme.palette.secondary.main,
+                          fontSize: 64,
+                          mb: 2,
+                          filter: `drop-shadow(0 0 10px ${theme.palette.secondary.main})`,
+                        }}
+                      />
+                    )}
+                    <Typography
+                      variant="h3"
+                      sx={{
+                        color: completedTasks.includes(focusedTask.id)
+                          ? theme.palette.secondary.main
+                          : textPrimary,
+                        textShadow: completedTasks.includes(focusedTask.id)
+                          ? `0 0 20px ${theme.palette.secondary.main}`
+                          : `0 0 20px ${primaryColor}`,
+                        fontWeight: 700,
+                        mb: 3,
+                        textTransform: 'uppercase',
+                        letterSpacing: '3px',
+                      }}
+                    >
+                      {focusedTask.title}
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        color: textSecondary,
+                        lineHeight: 1.8,
+                        mb: 4,
+                        fontSize: '1.25rem',
+                      }}
+                    >
+                      {focusedTask.description}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center', mb: 4 }}>
+                    <Chip
+                      label={`${focusedTask.xp} XP`}
+                      sx={{
+                        backgroundColor: `${primaryColor}33`,
+                        color: textPrimary,
+                        border: `1px solid ${primaryColor}80`,
+                        fontSize: '1rem',
+                        height: 40,
+                        px: 2,
+                      }}
+                    />
+                    {(() => {
+                      const skills = focusedTask.skills
+                        ? (Array.isArray(focusedTask.skills) ? focusedTask.skills : [focusedTask.skills])
+                        : (focusedTask.skill ? [focusedTask.skill] : []);
+
+                      return skills.map((skill) => (
+                        <Chip
+                          key={skill}
+                          label={skillNames[skill]}
+                          sx={{
+                            backgroundColor: `${primaryColor}1A`,
+                            color: textSecondary,
+                            border: `1px solid ${primaryColor}4D`,
+                            fontSize: '1rem',
+                            height: 40,
+                            px: 2,
+                          }}
+                        />
+                      ));
+                    })()}
+                    {focusedTask.type === 'time' && (
+                      <Chip
+                        icon={<Timer sx={{ color: primaryColor }} />}
+                        label={`${focusedTask.duration}s`}
+                        sx={{
+                          backgroundColor: `${primaryColor}1A`,
+                          color: textSecondary,
+                          border: `1px solid ${primaryColor}4D`,
+                          fontSize: '1rem',
+                          height: 40,
+                          px: 2,
+                        }}
+                      />
+                    )}
+                  </Box>
+
+                  {focusedTask.type === 'time' &&
+                    focusedTask.startedAt &&
+                    !completedTasks.includes(focusedTask.id) && (
+                      <Box sx={{ mb: 4, textAlign: 'center' }}>
+                        <motion.div
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.5 }}
+                        >
+                          <Typography
+                            variant="h1"
+                            sx={{
+                              mb: 3,
+                              color: primaryColor,
+                              fontWeight: 900,
+                              textAlign: 'center',
+                              fontSize: { xs: '4rem', sm: '6rem', md: '8rem' },
+                              textShadow: `0 0 30px ${primaryColor}, 0 0 60px ${primaryColor}`,
+                              fontFamily: 'monospace',
+                              letterSpacing: '0.1em',
+                            }}
+                          >
+                            {formatTime(activeTimers[focusedTask.id] || 0)}
+                          </Typography>
+                        </motion.div>
+                        <LinearProgress
+                          variant="determinate"
+                          value={
+                            ((focusedTask.duration * 1000 - (activeTimers[focusedTask.id] || 0)) /
+                              (focusedTask.duration * 1000)) *
+                            100
+                          }
+                          sx={{
+                            height: 16,
+                            borderRadius: 8,
+                            backgroundColor: `${primaryColor}1A`,
+                            '& .MuiLinearProgress-bar': {
+                              backgroundColor: primaryColor,
+                              boxShadow: `0 0 20px ${primaryColor}`,
+                            },
+                          }}
+                        />
+                      </Box>
+                    )}
+
+                  {!completedTasks.includes(focusedTask.id) && (
+                    <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
+                      {focusedTask.type === 'time' &&
+                        !(focusedTask.startedAt && !completedTasks.includes(focusedTask.id)) && (
+                          <motion.div
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <Button
+                              variant="outlined"
+                              startIcon={<PlayArrow />}
+                              onClick={() => {
+                                startTimeTask(focusedTask);
+                              }}
+                              fullWidth
+                              size="large"
+                              sx={{
+                                borderColor: primaryColor,
+                                color: textPrimary,
+                                borderWidth: '2px',
+                                textTransform: 'uppercase',
+                                fontWeight: 600,
+                                fontSize: '1.1rem',
+                                py: 2,
+                                '&:hover': {
+                                  borderColor: primaryColor,
+                                  backgroundColor: `${primaryColor}1A`,
+                                  boxShadow: `0 0 20px ${primaryColor}80`,
+                                },
+                              }}
+                            >
+                              Iniciar Tarefa
+                            </Button>
+                          </motion.div>
+                        )}
+                      {focusedTask.type === 'common' && (
+                        <motion.div
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Button
+                            variant="outlined"
+                            startIcon={<CheckCircle />}
+                            onClick={() => {
+                              handleCloseFocus();
+                              handleCompleteClick(focusedTask);
+                            }}
+                            fullWidth
+                            size="large"
+                            sx={{
+                              borderColor: primaryColor,
+                              color: textPrimary,
+                              borderWidth: '2px',
+                              textTransform: 'uppercase',
+                              fontWeight: 600,
+                              fontSize: '1.1rem',
+                              py: 2,
+                              '&:hover': {
+                                borderColor: primaryColor,
+                                backgroundColor: `${primaryColor}1A`,
+                                boxShadow: `0 0 20px ${primaryColor}80`,
+                              },
+                            }}
+                          >
+                            Concluir Tarefa
+                          </Button>
+                        </motion.div>
+                      )}
+                    </Box>
+                  )}
+                </Paper>
+              </motion.div>
+            </Box>
+          </Box>
+        )}
+      </Dialog>
 
       <Dialog
         open={confirmDialog.open}

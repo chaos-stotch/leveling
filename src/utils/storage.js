@@ -5,7 +5,6 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'leveling_notifications',
   BLOCKED: 'leveling_blocked',
   THEME: 'leveling_theme',
-  SPOTIFY_PLAYLISTS: 'leveling_spotify_playlists',
 };
 
 export const getPlayerData = () => {
@@ -86,29 +85,5 @@ export const getSelectedTheme = () => {
 
 export const saveSelectedTheme = (themeId) => {
   localStorage.setItem(STORAGE_KEYS.THEME, themeId);
-};
-
-// Gerenciamento de playlists do Spotify
-export const getSpotifyPlaylists = () => {
-  const data = localStorage.getItem(STORAGE_KEYS.SPOTIFY_PLAYLISTS);
-  return data ? JSON.parse(data) : [];
-};
-
-export const saveSpotifyPlaylists = (playlists) => {
-  localStorage.setItem(STORAGE_KEYS.SPOTIFY_PLAYLISTS, JSON.stringify(playlists));
-};
-
-export const addSpotifyPlaylist = (url) => {
-  const playlists = getSpotifyPlaylists();
-  if (!playlists.includes(url)) {
-    playlists.push(url);
-    saveSpotifyPlaylists(playlists);
-  }
-};
-
-export const removeSpotifyPlaylist = (url) => {
-  const playlists = getSpotifyPlaylists();
-  const filtered = playlists.filter(p => p !== url);
-  saveSpotifyPlaylists(filtered);
 };
 
