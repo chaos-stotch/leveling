@@ -9,6 +9,7 @@ const BlockedScreen = ({ onUnblock }) => {
   const primaryColor = theme.palette.primary.main;
   const textPrimary = theme.palette.text.primary;
   const textSecondary = theme.palette.text.secondary;
+  const titleTextShadow = theme.custom?.titleTextShadow || `0 0 10px ${primaryColor}`;
   
   const [punishment, setPunishment] = useState('');
   const [error, setError] = useState('');
@@ -108,7 +109,7 @@ const BlockedScreen = ({ onUnblock }) => {
             sx={{
               mb: 2,
               color: textPrimary,
-              textShadow: `0 0 10px ${primaryColor}`,
+              textShadow: titleTextShadow,
               fontWeight: 600,
             }}
           >

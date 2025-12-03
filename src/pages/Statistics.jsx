@@ -13,6 +13,9 @@ const Statistics = () => {
   const primaryColor = theme.palette.primary.main;
   const textPrimary = theme.palette.text.primary;
   const textSecondary = theme.palette.text.secondary;
+  const titleTextShadow = theme.custom?.titleTextShadow || `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`;
+  const textShadow = theme.custom?.textShadow || `0 0 10px ${primaryColor}`;
+  const textShadowLarge = theme.custom?.textShadowLarge || `0 0 20px ${primaryColor}, 0 0 40px ${primaryColor}`;
 
   const skills = [
     { key: 'strength', name: 'STR', fullName: 'Força', icon: FitnessCenter, color: '#FF6B6B' },
@@ -59,7 +62,7 @@ const Statistics = () => {
             fontWeight: 'bold',
             mb: 4,
             color: textPrimary,
-            textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
+            textShadow: titleTextShadow,
             textTransform: 'uppercase',
             letterSpacing: '2px',
             border: `1px solid ${primaryColor}40`,
@@ -104,7 +107,7 @@ const Statistics = () => {
                 sx={{
                   fontWeight: 'bold',
                   color: textPrimary,
-                  textShadow: `0 0 20px ${primaryColor}, 0 0 40px ${primaryColor}`,
+                  textShadow: textShadowLarge,
                   fontSize: '4rem',
                 }}
               >
@@ -163,7 +166,7 @@ const Statistics = () => {
             mb: 3,
             fontWeight: 'bold',
             color: textPrimary,
-            textShadow: `0 0 10px ${primaryColor}`,
+            textShadow: textShadow,
             textTransform: 'uppercase',
             letterSpacing: '2px',
           }}
@@ -221,7 +224,7 @@ const Statistics = () => {
                       sx={{
                         fontWeight: 'bold',
                         color: textPrimary,
-                        textShadow: `0 0 10px ${primaryColor}`,
+                        textShadow: textShadow,
                       }}
                     >
                       {skill.name}: {skillData.level}

@@ -88,6 +88,8 @@ const SortableTaskItem = ({
   const secondaryColor = theme.palette.secondary.main;
   const textPrimary = theme.palette.text.primary;
   const textSecondary = theme.palette.text.secondary;
+  const titleTextShadow = theme.custom?.titleTextShadow || `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`;
+  const textShadow = theme.custom?.textShadow || `0 0 5px ${primaryColor}`;
   
   const {
     attributes,
@@ -160,7 +162,7 @@ const SortableTaskItem = ({
             sx={{
               flex: 1,
               color: isCompleted ? secondaryColor : textPrimary,
-              textShadow: isCompleted ? `0 0 10px ${secondaryColor}` : `0 0 5px ${primaryColor}`,
+              textShadow: isCompleted ? `0 0 10px ${secondaryColor}` : textShadow,
               fontWeight: 600,
             }}
           >
@@ -299,6 +301,8 @@ const Tasks = ({ onTaskComplete }) => {
   const primaryColor = theme.palette.primary.main;
   const textPrimary = theme.palette.text.primary;
   const textSecondary = theme.palette.text.secondary;
+  const titleTextShadow = theme.custom?.titleTextShadow || `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`;
+  const textShadow = theme.custom?.textShadow || `0 0 5px ${primaryColor}`;
   
   const [tasks, setTasks] = useState([]);
   const [tabValue, setTabValue] = useState(0);
@@ -627,7 +631,7 @@ const Tasks = ({ onTaskComplete }) => {
           sx={{
             fontWeight: 'bold',
             color: textPrimary,
-            textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
+            textShadow: titleTextShadow,
             textTransform: 'uppercase',
             letterSpacing: '2px',
             fontSize: '1.5rem',
@@ -656,7 +660,7 @@ const Tasks = ({ onTaskComplete }) => {
               '&.Mui-selected': {
                 color: textPrimary,
                 opacity: 1,
-                textShadow: `0 0 10px ${primaryColor}`,
+                textShadow: titleTextShadow,
               },
             },
             '& .MuiTabs-indicator': {
@@ -908,7 +912,7 @@ const Tasks = ({ onTaskComplete }) => {
                           : textPrimary,
                         textShadow: completedTasks.includes(focusedTask.id)
                           ? `0 0 20px ${theme.palette.secondary.main}`
-                          : `0 0 20px ${primaryColor}`,
+                          : textShadow,
                         fontWeight: 700,
                         mb: 3,
                         textTransform: 'uppercase',
@@ -995,7 +999,7 @@ const Tasks = ({ onTaskComplete }) => {
                               fontWeight: 900,
                               textAlign: 'center',
                               fontSize: { xs: '4rem', sm: '6rem', md: '8rem' },
-                              textShadow: `0 0 30px ${primaryColor}, 0 0 60px ${primaryColor}`,
+                              textShadow: titleTextShadow,
                               fontFamily: 'monospace',
                               letterSpacing: '0.1em',
                             }}
@@ -1116,7 +1120,7 @@ const Tasks = ({ onTaskComplete }) => {
           },
         }}
       >
-        <DialogTitle sx={{ color: textPrimary, textShadow: `0 0 10px ${primaryColor}`, textTransform: 'uppercase' }}>
+        <DialogTitle sx={{ color: textPrimary, textShadow: titleTextShadow, textTransform: 'uppercase' }}>
           Confirmar Conclusão
         </DialogTitle>
         <DialogContent>

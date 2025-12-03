@@ -9,6 +9,7 @@ const Notifications = () => {
   const primaryColor = theme.palette.primary.main;
   const textPrimary = theme.palette.text.primary;
   const textSecondary = theme.palette.text.secondary;
+  const titleTextShadow = theme.custom?.titleTextShadow || `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`;
   
   const notifications = getNotifications();
 
@@ -83,7 +84,7 @@ const Notifications = () => {
             sx={{
               fontWeight: 'bold',
               color: textPrimary,
-              textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
+              textShadow: titleTextShadow,
               textTransform: 'uppercase',
               letterSpacing: '2px',
               fontSize: '1.5rem',
@@ -132,7 +133,7 @@ const Notifications = () => {
                       gutterBottom
                       sx={{
                         color: textPrimary,
-                        textShadow: `0 0 5px ${primaryColor}`,
+                        textShadow: titleTextShadow,
                         fontWeight: 600,
                       }}
                     >

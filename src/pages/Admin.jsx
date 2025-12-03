@@ -49,6 +49,8 @@ const Admin = () => {
   const primaryColor = theme.palette.primary.main;
   const textPrimary = theme.palette.text.primary;
   const textSecondary = theme.palette.text.secondary;
+  const titleTextShadow = theme.custom?.titleTextShadow || `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`;
+  const textShadow = theme.custom?.textShadow || `0 0 10px ${primaryColor}`;
   
   const [tasks, setTasks] = useState([]);
   const [playerData, setPlayerData] = useState(null);
@@ -274,7 +276,7 @@ const Admin = () => {
             sx={{
               fontWeight: 'bold',
               color: textPrimary,
-              textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
+              textShadow: titleTextShadow,
               textTransform: 'uppercase',
               letterSpacing: '2px',
               fontSize: '1.5rem',
@@ -305,7 +307,7 @@ const Admin = () => {
             sx={{
               mb: 3,
               color: textPrimary,
-              textShadow: `0 0 10px ${primaryColor}`,
+              textShadow: titleTextShadow,
               textTransform: 'uppercase',
               letterSpacing: '2px',
             }}
@@ -464,7 +466,7 @@ const Admin = () => {
           sx={{
             mb: 2,
             color: textPrimary,
-            textShadow: `0 0 10px ${primaryColor}`,
+            textShadow: textShadow,
             textTransform: 'uppercase',
             letterSpacing: '2px',
           }}
@@ -649,7 +651,7 @@ const Admin = () => {
             sx={{
               mb: 3,
               color: textPrimary,
-              textShadow: `0 0 10px ${primaryColor}`,
+              textShadow: titleTextShadow,
               textTransform: 'uppercase',
               letterSpacing: '2px',
             }}
@@ -729,7 +731,7 @@ const Admin = () => {
               variant="h6"
               sx={{
                 color: textPrimary,
-                textShadow: `0 0 10px ${primaryColor}`,
+                textShadow: titleTextShadow,
                 textTransform: 'uppercase',
                 letterSpacing: '2px',
                 fontWeight: 600,
@@ -784,7 +786,7 @@ const Admin = () => {
                           color: themeItem.palette.text.primary,
                           fontWeight: 600,
                           mb: 1,
-                          textShadow: `0 0 10px ${themeItem.palette.primary.main}`,
+                          textShadow: themeItem.effects?.textShadow || 'none',
                         }}
                       >
                         {themeItem.name}

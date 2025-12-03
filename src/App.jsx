@@ -138,11 +138,16 @@ const createAppTheme = (themeConfig) => {
             opacity: 0.6,
             '&.Mui-selected': {
               color: themeConfig.effects.bottomNavSelected,
-              textShadow: `0 0 10px ${themeConfig.effects.bottomNavSelected}`,
+              textShadow: themeConfig.effects.textShadow,
             },
           },
         },
       },
+    },
+    custom: {
+      titleTextShadow: themeConfig.effects.titleTextShadow,
+      textShadow: themeConfig.effects.textShadow,
+      textShadowLarge: themeConfig.effects.textShadowLarge,
     },
   });
 };

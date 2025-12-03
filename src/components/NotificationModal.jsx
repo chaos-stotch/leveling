@@ -8,6 +8,7 @@ const NotificationModal = ({ open, notification, onClose }) => {
   const primaryColor = theme.palette.primary.main;
   const textPrimary = theme.palette.text.primary;
   const textSecondary = theme.palette.text.secondary;
+  const titleTextShadow = theme.custom?.titleTextShadow || `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}, 0 0 30px ${primaryColor}`;
   
   if (!notification) return null;
 
@@ -118,7 +119,7 @@ const NotificationModal = ({ open, notification, onClose }) => {
               fontWeight: 'bold',
               mb: 2,
               color: textPrimary,
-              textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}, 0 0 30px ${primaryColor}`,
+              textShadow: titleTextShadow,
               textTransform: 'uppercase',
               letterSpacing: '2px',
             }}
@@ -137,7 +138,7 @@ const NotificationModal = ({ open, notification, onClose }) => {
             sx={{
               mb: 4,
               color: textSecondary,
-              textShadow: `0 0 5px ${primaryColor}`,
+              textShadow: titleTextShadow,
               maxWidth: '80%',
             }}
           >
