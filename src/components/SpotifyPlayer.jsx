@@ -232,7 +232,11 @@ const SpotifyPlayer = () => {
           >
             <IconButton
               size="small"
-              onClick={login}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                login();
+              }}
               sx={{
                 color: primaryColor,
                 backgroundColor: `${primaryColor}33`,
