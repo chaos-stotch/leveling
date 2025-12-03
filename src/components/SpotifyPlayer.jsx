@@ -37,12 +37,41 @@ const SpotifyPlayer = () => {
   
   const playerRef = useRef(null);
   const intervalRef = useRef(null);
+  const [sdkReady, setSdkReady] = useState(false);
+
+  // Aguardar o SDK do Spotify carregar
+  useEffect(() => {
+    // Verificar se já está pronto
+    if (window.Spotify && window.spotifySDKReady) {
+      setSdkReady(true);
+      return;
+    }
+
+    // Aguardar evento de ready
+    const handleSDKReady = () => {
+      setSdkReady(true);
+    };
+
+    window.addEventListener('spotifySDKReady', handleSDKReady);
+
+    // Verificar periodicamente se o SDK carregou (fallback)
+    const checkInterval = setInterval(() => {
+      if (window.Spotify) {
+        setSdkReady(true);
+        clearInterval(checkInterval);
+      }
+    }, 100);
+
+    return () => {
+      window.removeEventListener('spotifySDKReady', handleSDKReady);
+      clearInterval(checkInterval);
+    };
+  }, []);
 
   // Inicializar Spotify Web Playback SDK
   useEffect(() => {
     const initSpotify = async () => {
-      if (!window.Spotify) {
-        console.error('Spotify Web Playback SDK não carregado');
+      if (!sdkReady || !window.Spotify) {
         return;
       }
 
@@ -91,7 +120,7 @@ const SpotifyPlayer = () => {
     };
 
     initSpotify();
-  }, [accessToken, isAuthenticated]);
+  }, [accessToken, isAuthenticated, sdkReady]);
 
   // Atualizar posição da música
   useEffect(() => {
