@@ -1,35 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import fs from 'fs'
-import path from 'path'
-
-// Configuração HTTPS apenas para desenvolvimento local
-const getHttpsConfig = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return false; // Não usar HTTPS em produção (Vercel/outros hosts já fornecem)
-  }
-  
-  const keyPath = path.resolve(__dirname, 'certs/key.pem');
-  const certPath = path.resolve(__dirname, 'certs/cert.pem');
-  
-  // Verificar se os certificados existem
-  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-    return {
-      key: fs.readFileSync(keyPath),
-      cert: fs.readFileSync(certPath),
-    };
-  }
-  
-  return false; // Se não existirem, não usar HTTPS
-};
 
 export default defineConfig({
-  server: {
-    https: getHttpsConfig(),
-    port: 5173,
-    host: true,
-  },
   plugins: [
     react(),
     VitePWA({

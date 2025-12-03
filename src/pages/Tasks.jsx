@@ -583,7 +583,7 @@ const Tasks = ({ onTaskComplete }) => {
             textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
             textTransform: 'uppercase',
             letterSpacing: '2px',
-            fontSize: '1.25rem',
+            fontSize: '1.5rem',
           }}
         >
           QUEST INFO

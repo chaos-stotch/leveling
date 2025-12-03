@@ -65,7 +65,7 @@ const Statistics = () => {
             border: `1px solid ${primaryColor}40`,
             p: 1.5,
             textAlign: 'center',
-            fontSize: '1.25rem',
+            fontSize: '1.5rem',
           }}
         >
           STATUS

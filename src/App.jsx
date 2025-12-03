@@ -10,9 +10,9 @@ import Admin from './pages/Admin';
 import NotificationModal from './components/NotificationModal';
 import BlockedScreen from './components/BlockedScreen';
 import ClickSoundProvider from './components/ClickSoundProvider';
-import SpotifyPlayer from './components/SpotifyPlayer';
+import SpotifyEmbed from './components/SpotifyEmbed';
 import { useSound } from './hooks/useSound';
-import { isBlocked, getNotifications, getSelectedTheme } from './utils/storage';
+import { isBlocked, getNotifications, getSelectedTheme, getSpotifyPlaylists } from './utils/storage';
 import { getTheme } from './themes';
 
 const createAppTheme = (themeConfig) => {
@@ -156,6 +156,7 @@ function App() {
   const [notificationQueue, setNotificationQueue] = useState([]);
   const [lastNotificationCheck, setLastNotificationCheck] = useState(Date.now());
   const [selectedThemeId, setSelectedThemeId] = useState(getSelectedTheme());
+  const [hasSpotifyPlaylists, setHasSpotifyPlaylists] = useState(false);
   const { playSound } = useSound();
 
   const themeConfig = getTheme(selectedThemeId);
@@ -169,6 +170,17 @@ function App() {
     return () => {
       window.removeEventListener('themeChanged', handleThemeChange);
     };
+  }, []);
+
+  // Verificar se há playlists do Spotify para ajustar padding
+  useEffect(() => {
+    const checkPlaylists = () => {
+      const playlists = getSpotifyPlaylists();
+      setHasSpotifyPlaylists(playlists.length > 0);
+    };
+    checkPlaylists();
+    const interval = setInterval(checkPlaylists, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -276,7 +288,7 @@ function App() {
       <ClickSoundProvider>
         <Box 
           sx={{ 
-            pb: 20, 
+            pb: hasSpotifyPlaylists ? 24 : 7, // Espaço dinâmico: com SpotifyEmbed ou apenas BottomNavigation
             minHeight: '100vh', 
             backgroundColor: 'background.default', 
             position: 'relative', 
@@ -316,6 +328,7 @@ function App() {
             </AnimatePresence>
           </Box>
         </Box>
+        <SpotifyEmbed />
         <motion.div
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -352,7 +365,6 @@ function App() {
             ))}
           </BottomNavigation>
         </motion.div>
-        <SpotifyPlayer />
         <NotificationModal
           open={showNotification}
           notification={notification}

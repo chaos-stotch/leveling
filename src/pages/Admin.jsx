@@ -21,9 +21,9 @@ import {
   Switch,
   useTheme,
 } from '@mui/material';
-import { Add, Delete, Edit, Palette } from '@mui/icons-material';
+import { Add, Delete, Edit, Palette, MusicNote } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { getTasks, saveTasks, getPlayerData, savePlayerData, getSelectedTheme, saveSelectedTheme } from '../utils/storage';
+import { getTasks, saveTasks, getPlayerData, savePlayerData, getSelectedTheme, saveSelectedTheme, getSpotifyPlaylists, addSpotifyPlaylist, removeSpotifyPlaylist } from '../utils/storage';
 import { themes } from '../themes';
 
 // Funções auxiliares para gerenciar tarefas concluídas
@@ -53,6 +53,8 @@ const Admin = () => {
   const [tasks, setTasks] = useState([]);
   const [playerData, setPlayerData] = useState(null);
   const [selectedTheme, setSelectedTheme] = useState(getSelectedTheme());
+  const [spotifyPlaylists, setSpotifyPlaylists] = useState(getSpotifyPlaylists());
+  const [newPlaylistUrl, setNewPlaylistUrl] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -67,6 +69,7 @@ const Admin = () => {
   useEffect(() => {
     loadTasks();
     loadPlayerData();
+    setSpotifyPlaylists(getSpotifyPlaylists());
   }, []);
 
   const loadTasks = () => {
@@ -277,7 +280,7 @@ const Admin = () => {
               textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
               textTransform: 'uppercase',
               letterSpacing: '2px',
-              fontSize: '1.25rem',
+              fontSize: '1.5rem',
             }}
           >
             ADMIN - GERENCIAR TEMPLATES DE TAREFAS
@@ -817,6 +820,141 @@ const Admin = () => {
               </Grid>
             ))}
           </Grid>
+        </Paper>
+      </motion.div>
+
+      {/* Seção de Playlists do Spotify */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Paper
+          sx={{
+            p: 3,
+            mb: 4,
+            backgroundColor: 'background.paper',
+            border: `2px solid ${primaryColor}80`,
+            boxShadow: `0 0 30px ${primaryColor}33`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <MusicNote sx={{ color: primaryColor, fontSize: 32 }} />
+            <Typography
+              variant="h6"
+              sx={{
+                color: textPrimary,
+                textShadow: `0 0 10px ${primaryColor}`,
+                textTransform: 'uppercase',
+                letterSpacing: '2px',
+                fontWeight: 600,
+              }}
+            >
+              Playlists do Spotify
+            </Typography>
+          </Box>
+          
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body2" sx={{ mb: 2, color: textSecondary }}>
+              Adicione URLs de playlists do Spotify para exibir o player acima da navegação
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <TextField
+                fullWidth
+                label="URL da Playlist do Spotify"
+                value={newPlaylistUrl}
+                onChange={(e) => setNewPlaylistUrl(e.target.value)}
+                placeholder="https://open.spotify.com/playlist/..."
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    color: textPrimary,
+                  },
+                }}
+              />
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() => {
+                    if (newPlaylistUrl.trim()) {
+                      addSpotifyPlaylist(newPlaylistUrl.trim());
+                      setSpotifyPlaylists(getSpotifyPlaylists());
+                      setNewPlaylistUrl('');
+                    }
+                  }}
+                  disabled={!newPlaylistUrl.trim()}
+                  sx={{
+                    minWidth: 120,
+                  }}
+                >
+                  Adicionar
+                </Button>
+              </motion.div>
+            </Box>
+          </Box>
+
+          {spotifyPlaylists.length > 0 && (
+            <Box>
+              <Typography variant="body2" sx={{ mb: 2, color: textSecondary, fontWeight: 600 }}>
+                Playlists adicionadas ({spotifyPlaylists.length}):
+              </Typography>
+              {spotifyPlaylists.map((playlistUrl, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                >
+                  <Paper
+                    sx={{
+                      p: 2,
+                      mb: 1.5,
+                      backgroundColor: `${primaryColor}0D`,
+                      border: `1px solid ${primaryColor}4D`,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: textSecondary,
+                        flex: 1,
+                        mr: 2,
+                        wordBreak: 'break-all',
+                      }}
+                    >
+                      {playlistUrl}
+                    </Typography>
+                    <motion.div
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      <IconButton
+                        onClick={() => {
+                          removeSpotifyPlaylist(playlistUrl);
+                          setSpotifyPlaylists(getSpotifyPlaylists());
+                        }}
+                        sx={{
+                          color: '#FF0000',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                            boxShadow: '0 0 10px rgba(255, 0, 0, 0.5)',
+                          },
+                        }}
+                      >
+                        <Delete />
+                      </IconButton>
+                    </motion.div>
+                  </Paper>
+                </motion.div>
+              ))}
+            </Box>
+          )}
         </Paper>
       </motion.div>
 
