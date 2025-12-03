@@ -14,8 +14,10 @@ import {
   IconButton,
   Tabs,
   Tab,
+  useTheme,
 } from '@mui/material';
 import { CheckCircle, PlayArrow, Timer, Delete, ErrorOutline, DragIndicator } from '@mui/icons-material';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
   closestCenter,
@@ -80,6 +82,12 @@ const SortableTaskItem = ({
   formatTime,
   skillNames
 }) => {
+  const theme = useTheme();
+  const primaryColor = theme.palette.primary.main;
+  const secondaryColor = theme.palette.secondary.main;
+  const textPrimary = theme.palette.text.primary;
+  const textSecondary = theme.palette.text.secondary;
+  
   const {
     attributes,
     listeners,
@@ -101,21 +109,22 @@ const SortableTaskItem = ({
     <Paper
       ref={setNodeRef}
       style={style}
+      component={motion.div}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -100 }}
+      whileHover={{ scale: 1.02, y: -2 }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       sx={{
         p: 2.5,
         mb: 2,
         backgroundColor: 'background.paper',
-        border: isCompleted ? '1px solid rgba(0, 255, 136, 0.5)' : '1px solid rgba(0, 212, 255, 0.3)',
+        border: isCompleted ? `1px solid ${secondaryColor}80` : `1px solid ${primaryColor}4D`,
         boxShadow: isCompleted
-          ? '0 0 20px rgba(0, 255, 136, 0.2)'
-          : '0 0 20px rgba(0, 212, 255, 0.1)',
+          ? `0 0 20px ${secondaryColor}33`
+          : `0 0 20px ${primaryColor}1A`,
         cursor: isDragging ? 'grabbing' : 'grab',
         position: 'relative',
-        '&:hover': {
-          boxShadow: isCompleted
-            ? '0 0 25px rgba(0, 255, 136, 0.3)'
-            : '0 0 25px rgba(0, 212, 255, 0.2)',
-        },
       }}
     >
       {/* Handle de arrastar */}
@@ -127,11 +136,13 @@ const SortableTaskItem = ({
           top: 8,
           right: 8,
           cursor: 'grab',
-          color: '#6B7A99',
+          color: textSecondary,
+          opacity: 0.6,
           touchAction: 'none', // Só no handle para não interferir com cliques no card
           userSelect: 'none',
           '&:hover': {
-            color: '#00D4FF',
+            color: primaryColor,
+            opacity: 1,
           },
           '&:active': {
             cursor: 'grabbing',
@@ -146,18 +157,18 @@ const SortableTaskItem = ({
           variant="h6"
           sx={{
             flex: 1,
-            color: isCompleted ? '#00FF88' : '#00D4FF',
-            textShadow: isCompleted ? '0 0 10px #00FF88' : '0 0 5px #00D4FF',
+            color: isCompleted ? secondaryColor : textPrimary,
+            textShadow: isCompleted ? `0 0 10px ${secondaryColor}` : `0 0 5px ${primaryColor}`,
             fontWeight: 600,
           }}
         >
           -{task.title.toUpperCase()}
         </Typography>
         {isCompleted && (
-          <CheckCircle sx={{ color: '#00FF88', filter: 'drop-shadow(0 0 5px #00FF88)' }} />
+          <CheckCircle sx={{ color: secondaryColor, filter: `drop-shadow(0 0 5px ${secondaryColor})` }} />
         )}
       </Box>
-      <Typography variant="body2" sx={{ mb: 2, color: '#B0E0FF', lineHeight: 1.6 }}>
+      <Typography variant="body2" sx={{ mb: 2, color: textSecondary, lineHeight: 1.6 }}>
         {task.description}
       </Typography>
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
@@ -165,9 +176,9 @@ const SortableTaskItem = ({
           label={`${task.xp} XP`}
           size="small"
           sx={{
-            backgroundColor: 'rgba(0, 212, 255, 0.2)',
-            color: '#00D4FF',
-            border: '1px solid rgba(0, 212, 255, 0.5)',
+            backgroundColor: `${primaryColor}33`,
+            color: textPrimary,
+            border: `1px solid ${primaryColor}80`,
           }}
         />
         {(() => {
@@ -182,29 +193,29 @@ const SortableTaskItem = ({
               label={skillNames[skill]}
               size="small"
               sx={{
-                backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                color: '#B0E0FF',
-                border: '1px solid rgba(0, 212, 255, 0.3)',
+                backgroundColor: `${primaryColor}1A`,
+                color: textSecondary,
+                border: `1px solid ${primaryColor}4D`,
               }}
             />
           ));
         })()}
         {isTimeTask && (
           <Chip
-            icon={<Timer sx={{ color: '#00D4FF' }} />}
+            icon={<Timer sx={{ color: primaryColor }} />}
             label={`${task.duration}s`}
             size="small"
             sx={{
-              backgroundColor: 'rgba(0, 212, 255, 0.1)',
-              color: '#B0E0FF',
-              border: '1px solid rgba(0, 212, 255, 0.3)',
+              backgroundColor: `${primaryColor}1A`,
+              color: textSecondary,
+              border: `1px solid ${primaryColor}4D`,
             }}
           />
         )}
       </Box>
       {isTimeTask && isStarted && (
         <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" sx={{ mb: 1, color: '#00D4FF', fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ mb: 1, color: textPrimary, fontWeight: 600 }}>
             Tempo restante: {formatTime(remaining)}
           </Typography>
           <LinearProgress
@@ -213,47 +224,58 @@ const SortableTaskItem = ({
             sx={{
               height: 8,
               borderRadius: 4,
-              backgroundColor: 'rgba(0, 212, 255, 0.1)',
+              backgroundColor: `${primaryColor}1A`,
               '& .MuiLinearProgress-bar': {
-                backgroundColor: '#00D4FF',
-                boxShadow: '0 0 10px #00D4FF',
+                backgroundColor: primaryColor,
+                boxShadow: `0 0 10px ${primaryColor}`,
               },
             }}
           />
         </Box>
       )}
       {!isCompleted && (
-        <Button
-          variant="outlined"
-          startIcon={isTimeTask ? (isStarted ? <Timer /> : <PlayArrow />) : <CheckCircle />}
-          onClick={() => (isTimeTask ? (isStarted ? null : onStartTimeTask(task)) : onCompleteClick(task))}
-          disabled={isTimeTask && isStarted}
-          fullWidth
-          sx={{
-            borderColor: '#00D4FF',
-            color: '#00D4FF',
-            borderWidth: '2px',
-            textTransform: 'uppercase',
-            fontWeight: 600,
-            '&:hover': {
-              borderColor: '#00D4FF',
-              backgroundColor: 'rgba(0, 212, 255, 0.1)',
-              boxShadow: '0 0 20px rgba(0, 212, 255, 0.5)',
-            },
-            '&:disabled': {
-              borderColor: '#6B7A99',
-              color: '#6B7A99',
-            },
-          }}
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          {isTimeTask ? (isStarted ? 'Em andamento...' : 'Iniciar Tarefa') : 'Concluir Tarefa'}
-        </Button>
+          <Button
+            variant="outlined"
+            startIcon={isTimeTask ? (isStarted ? <Timer /> : <PlayArrow />) : <CheckCircle />}
+            onClick={() => (isTimeTask ? (isStarted ? null : onStartTimeTask(task)) : onCompleteClick(task))}
+            disabled={isTimeTask && isStarted}
+            fullWidth
+            sx={{
+              borderColor: primaryColor,
+              color: textPrimary,
+              borderWidth: '2px',
+              textTransform: 'uppercase',
+              fontWeight: 600,
+              '&:hover': {
+                borderColor: primaryColor,
+                backgroundColor: `${primaryColor}1A`,
+                boxShadow: `0 0 20px ${primaryColor}80`,
+              },
+              '&:disabled': {
+                borderColor: textSecondary,
+                color: textSecondary,
+                opacity: 0.5,
+              },
+            }}
+          >
+            {isTimeTask ? (isStarted ? 'Em andamento...' : 'Iniciar Tarefa') : 'Concluir Tarefa'}
+          </Button>
+        </motion.div>
       )}
     </Paper>
   );
 };
 
 const Tasks = ({ onTaskComplete }) => {
+  const theme = useTheme();
+  const primaryColor = theme.palette.primary.main;
+  const textPrimary = theme.palette.text.primary;
+  const textSecondary = theme.palette.text.secondary;
+  
   const [tasks, setTasks] = useState([]);
   const [tabValue, setTabValue] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, task: null });
@@ -547,172 +569,218 @@ const Tasks = ({ onTaskComplete }) => {
           alignItems: 'center',
           gap: 2,
           mb: 3,
-          border: '1px solid rgba(0, 212, 255, 0.3)',
+          border: `1px solid ${primaryColor}4D`,
           p: 2,
         }}
       >
-        <ErrorOutline sx={{ color: '#00D4FF', filter: 'drop-shadow(0 0 5px #00D4FF)' }} />
+        <ErrorOutline sx={{ color: textPrimary, filter: `drop-shadow(0 0 5px ${primaryColor})` }} />
         <Typography
-          variant="h4"
+          variant="h5"
           component="h1"
           sx={{
             fontWeight: 'bold',
-            color: '#00D4FF',
-            textShadow: '0 0 10px #00D4FF, 0 0 20px #00D4FF',
+            color: textPrimary,
+            textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
             textTransform: 'uppercase',
-            letterSpacing: '3px',
+            letterSpacing: '2px',
+            fontSize: '1.25rem',
           }}
         >
           QUEST INFO
         </Typography>
       </Box>
 
-      <Tabs
-        value={tabValue}
-        onChange={(e, v) => setTabValue(v)}
-        sx={{
-          mb: 3,
-          '& .MuiTab-root': {
-            color: '#6B7A99',
-            textTransform: 'uppercase',
-            fontWeight: 600,
-            '&.Mui-selected': {
-              color: '#00D4FF',
-              textShadow: '0 0 10px #00D4FF',
-            },
-          },
-          '& .MuiTabs-indicator': {
-            backgroundColor: '#00D4FF',
-            boxShadow: '0 0 10px #00D4FF',
-          },
-        }}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Tab label="Tarefas Comuns" />
-        <Tab label="Tarefas por Tempo" />
-      </Tabs>
-
-      {tabValue === 0 && (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
+        <Tabs
+          value={tabValue}
+          onChange={(e, v) => setTabValue(v)}
+          sx={{
+            mb: 3,
+            '& .MuiTab-root': {
+              color: textSecondary,
+              opacity: 0.6,
+              textTransform: 'uppercase',
+              fontWeight: 600,
+              transition: 'all 0.3s ease',
+              '&.Mui-selected': {
+                color: textPrimary,
+                opacity: 1,
+                textShadow: `0 0 10px ${primaryColor}`,
+              },
+            },
+            '& .MuiTabs-indicator': {
+              backgroundColor: primaryColor,
+              boxShadow: `0 0 10px ${primaryColor}`,
+              transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+            },
+          }}
         >
-          <Box>
-            {commonTasks.length === 0 ? (
-              <Typography sx={{ color: '#6B7A99', textAlign: 'center', py: 4 }}>
-                Nenhuma tarefa comum disponível
-              </Typography>
-            ) : (
-              <SortableContext items={commonTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                {commonTasks.map((task) => (
+          <Tab label="Tarefas Comuns" />
+          <Tab label="Tarefas por Tempo" />
+        </Tabs>
+      </motion.div>
+
+      <AnimatePresence mode="wait">
+        {tabValue === 0 && (
+          <motion.div
+            key="common"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <Box>
+                {commonTasks.length === 0 ? (
+                  <Typography sx={{ color: '#6B7A99', textAlign: 'center', py: 4 }}>
+                    Nenhuma tarefa comum disponível
+                  </Typography>
+                ) : (
+                  <SortableContext items={commonTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                    {commonTasks.map((task, index) => (
+                      <motion.div
+                        key={task.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                      >
+                        <SortableTaskItem
+                          task={task}
+                          onCompleteClick={handleCompleteClick}
+                          onStartTimeTask={startTimeTask}
+                          isCompleted={completedTasks.includes(task.id)}
+                          isStarted={task.startedAt && !completedTasks.includes(task.id)}
+                          remaining={activeTimers[task.id] || 0}
+                          progress={(task.startedAt && !completedTasks.includes(task.id))
+                            ? ((task.duration * 1000 - (activeTimers[task.id] || 0)) / (task.duration * 1000)) * 100
+                            : 0}
+                          formatTime={formatTime}
+                          skillNames={skillNames}
+                        />
+                      </motion.div>
+                    ))}
+                  </SortableContext>
+                )}
+              </Box>
+              <DragOverlay>
+                {activeId ? (
                   <SortableTaskItem
-                    key={task.id}
-                    task={task}
-                    onCompleteClick={handleCompleteClick}
-                    onStartTimeTask={startTimeTask}
-                    isCompleted={completedTasks.includes(task.id)}
-                    isStarted={task.startedAt && !completedTasks.includes(task.id)}
-                    remaining={activeTimers[task.id] || 0}
-                    progress={(task.startedAt && !completedTasks.includes(task.id))
-                      ? ((task.duration * 1000 - (activeTimers[task.id] || 0)) / (task.duration * 1000)) * 100
-                      : 0}
+                    task={tasks.find(t => t.id === activeId)}
+                    onCompleteClick={() => {}}
+                    onStartTimeTask={() => {}}
+                    isCompleted={completedTasks.includes(activeId)}
+                    isStarted={false}
+                    remaining={0}
+                    progress={0}
                     formatTime={formatTime}
                     skillNames={skillNames}
                   />
-                ))}
-              </SortableContext>
-            )}
-          </Box>
-          <DragOverlay>
-            {activeId ? (
-              <SortableTaskItem
-                task={tasks.find(t => t.id === activeId)}
-                onCompleteClick={() => {}}
-                onStartTimeTask={() => {}}
-                isCompleted={completedTasks.includes(activeId)}
-                isStarted={false}
-                remaining={0}
-                progress={0}
-                formatTime={formatTime}
-                skillNames={skillNames}
-              />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-      )}
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          </motion.div>
+        )}
 
-      {tabValue === 1 && (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <Box>
-            {timeTasks.length === 0 ? (
-              <Typography sx={{ color: '#6B7A99', textAlign: 'center', py: 4 }}>
-                Nenhuma tarefa por tempo disponível
-              </Typography>
-            ) : (
-              <SortableContext items={timeTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                {timeTasks.map((task) => (
+        {tabValue === 1 && (
+          <motion.div
+            key="time"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <Box>
+                {timeTasks.length === 0 ? (
+                  <Typography sx={{ color: '#6B7A99', textAlign: 'center', py: 4 }}>
+                    Nenhuma tarefa por tempo disponível
+                  </Typography>
+                ) : (
+                  <SortableContext items={timeTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                    {timeTasks.map((task, index) => (
+                      <motion.div
+                        key={task.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                      >
+                        <SortableTaskItem
+                          task={task}
+                          onCompleteClick={handleCompleteClick}
+                          onStartTimeTask={startTimeTask}
+                          isCompleted={completedTasks.includes(task.id)}
+                          isStarted={task.startedAt && !completedTasks.includes(task.id)}
+                          remaining={activeTimers[task.id] || 0}
+                          progress={(task.startedAt && !completedTasks.includes(task.id))
+                            ? ((task.duration * 1000 - (activeTimers[task.id] || 0)) / (task.duration * 1000)) * 100
+                            : 0}
+                          formatTime={formatTime}
+                          skillNames={skillNames}
+                        />
+                      </motion.div>
+                    ))}
+                  </SortableContext>
+                )}
+              </Box>
+              <DragOverlay>
+                {activeId ? (
                   <SortableTaskItem
-                    key={task.id}
-                    task={task}
-                    onCompleteClick={handleCompleteClick}
-                    onStartTimeTask={startTimeTask}
-                    isCompleted={completedTasks.includes(task.id)}
-                    isStarted={task.startedAt && !completedTasks.includes(task.id)}
-                    remaining={activeTimers[task.id] || 0}
-                    progress={(task.startedAt && !completedTasks.includes(task.id))
-                      ? ((task.duration * 1000 - (activeTimers[task.id] || 0)) / (task.duration * 1000)) * 100
-                      : 0}
+                    task={tasks.find(t => t.id === activeId)}
+                    onCompleteClick={() => {}}
+                    onStartTimeTask={() => {}}
+                    isCompleted={completedTasks.includes(activeId)}
+                    isStarted={false}
+                    remaining={0}
+                    progress={0}
                     formatTime={formatTime}
                     skillNames={skillNames}
                   />
-                ))}
-              </SortableContext>
-            )}
-          </Box>
-          <DragOverlay>
-            {activeId ? (
-              <SortableTaskItem
-                task={tasks.find(t => t.id === activeId)}
-                onCompleteClick={() => {}}
-                onStartTimeTask={() => {}}
-                isCompleted={completedTasks.includes(activeId)}
-                isStarted={false}
-                remaining={0}
-                progress={0}
-                formatTime={formatTime}
-                skillNames={skillNames}
-              />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-      )}
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
 
       <Dialog
         open={confirmDialog.open}
         onClose={() => setConfirmDialog({ open: false, task: null })}
         PaperProps={{
+          component: motion.div,
+          initial: { opacity: 0, scale: 0.9, y: 20 },
+          animate: { opacity: 1, scale: 1, y: 0 },
+          exit: { opacity: 0, scale: 0.9, y: 20 },
+          transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] },
           sx: {
-            backgroundColor: '#0f1629',
-            border: '2px solid rgba(0, 212, 255, 0.5)',
-            boxShadow: '0 0 30px rgba(0, 212, 255, 0.3)',
+            backgroundColor: 'background.paper',
+            border: `2px solid ${primaryColor}80`,
+            boxShadow: `0 0 30px ${primaryColor}4D`,
           },
         }}
       >
-        <DialogTitle sx={{ color: '#00D4FF', textShadow: '0 0 10px #00D4FF', textTransform: 'uppercase' }}>
+        <DialogTitle sx={{ color: textPrimary, textShadow: `0 0 10px ${primaryColor}`, textTransform: 'uppercase' }}>
           Confirmar Conclusão
         </DialogTitle>
         <DialogContent>
-          <Typography sx={{ mb: 2, color: '#B0E0FF' }}>
+          <Typography sx={{ mb: 2, color: textSecondary }}>
             Digite "concluido" para confirmar que você completou a tarefa:
           </Typography>
-          <Typography variant="body2" sx={{ mb: 2, color: '#00D4FF', fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ mb: 2, color: textPrimary, fontWeight: 600 }}>
             {confirmDialog.task?.title}
           </Typography>
           <TextField
@@ -723,16 +791,16 @@ const Tasks = ({ onTaskComplete }) => {
             autoFocus
             sx={{
               '& .MuiOutlinedInput-root': {
-                color: '#00D4FF',
+                color: textPrimary,
                 '& fieldset': {
-                  borderColor: 'rgba(0, 212, 255, 0.5)',
+                  borderColor: `${primaryColor}80`,
                 },
                 '&:hover fieldset': {
-                  borderColor: 'rgba(0, 212, 255, 0.8)',
+                  borderColor: `${primaryColor}CC`,
                 },
                 '&.Mui-focused fieldset': {
-                  borderColor: '#00D4FF',
-                  boxShadow: '0 0 10px rgba(0, 212, 255, 0.5)',
+                  borderColor: primaryColor,
+                  boxShadow: `0 0 10px ${primaryColor}80`,
                 },
               },
             }}
@@ -741,7 +809,7 @@ const Tasks = ({ onTaskComplete }) => {
         <DialogActions>
           <Button
             onClick={() => setConfirmDialog({ open: false, task: null })}
-            sx={{ color: '#6B7A99' }}
+            sx={{ color: textSecondary, opacity: 0.7 }}
           >
             Cancelar
           </Button>
@@ -750,15 +818,16 @@ const Tasks = ({ onTaskComplete }) => {
             variant="outlined"
             disabled={confirmText.trim().toLowerCase() !== 'concluido'}
             sx={{
-              borderColor: '#00D4FF',
-              color: '#00D4FF',
+              borderColor: primaryColor,
+              color: textPrimary,
               '&:hover': {
-                borderColor: '#00D4FF',
-                backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                borderColor: primaryColor,
+                backgroundColor: `${primaryColor}1A`,
               },
               '&:disabled': {
-                borderColor: '#6B7A99',
-                color: '#6B7A99',
+                borderColor: textSecondary,
+                color: textSecondary,
+                opacity: 0.5,
               },
             }}
           >

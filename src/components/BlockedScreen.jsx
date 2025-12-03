@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
-import { Box, Typography, TextField, Button, Paper } from '@mui/material';
+import { Box, Typography, TextField, Button, Paper, useTheme } from '@mui/material';
 import { ErrorOutline } from '@mui/icons-material';
+import { motion } from 'framer-motion';
 import { setBlocked } from '../utils/storage';
 
 const BlockedScreen = ({ onUnblock }) => {
+  const theme = useTheme();
+  const primaryColor = theme.palette.primary.main;
+  const textPrimary = theme.palette.text.primary;
+  const textSecondary = theme.palette.text.secondary;
+  
   const [punishment, setPunishment] = useState('');
   const [error, setError] = useState('');
 
@@ -23,85 +29,126 @@ const BlockedScreen = ({ onUnblock }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#0a0e27',
+        background: theme.palette.background.default,
         backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(255, 0, 0, 0.1) 0%, transparent 70%)',
         p: 2,
       }}
     >
       <Paper
+        component={motion.div}
+        initial={{ opacity: 0, scale: 0.9, y: 50 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         sx={{
           p: 4,
           maxWidth: 600,
           width: '100%',
           textAlign: 'center',
-          backgroundColor: '#0f1629',
+          backgroundColor: theme.palette.background.paper,
           border: '2px solid rgba(255, 0, 0, 0.5)',
           boxShadow: 'inset 0 0 50px rgba(255, 0, 0, 0.1), 0 0 50px rgba(255, 0, 0, 0.3)',
         }}
       >
-        <Box
-          sx={{
-            mb: 3,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 2,
-          }}
+        <motion.div
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1], delay: 0.1 }}
         >
-          <ErrorOutline
+          <Box
             sx={{
-              fontSize: 60,
-              color: '#FF0000',
-              filter: 'drop-shadow(0 0 10px #FF0000)',
-            }}
-          />
-          <Typography
-            variant="h4"
-            component="h1"
-            sx={{
-              fontWeight: 'bold',
-              color: '#FF0000',
-              textShadow: '0 0 10px #FF0000, 0 0 20px #FF0000',
-              textTransform: 'uppercase',
-              letterSpacing: '3px',
+              mb: 3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
             }}
           >
-            NOTIFICATION
+            <motion.div
+              animate={{ 
+                rotate: [0, 10, -10, 0],
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                repeatType: "reverse",
+                ease: "easeInOut"
+              }}
+            >
+              <ErrorOutline
+                sx={{
+                  fontSize: 60,
+                  color: '#FF0000',
+                  filter: 'drop-shadow(0 0 10px #FF0000)',
+                }}
+              />
+            </motion.div>
+            <Typography
+              variant="h4"
+              component="h1"
+              sx={{
+                fontWeight: 'bold',
+                color: '#FF0000',
+                textShadow: '0 0 10px #FF0000, 0 0 20px #FF0000',
+                textTransform: 'uppercase',
+                letterSpacing: '3px',
+              }}
+            >
+              NOTIFICATION
+            </Typography>
+          </Box>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <Typography
+            variant="h5"
+            sx={{
+              mb: 2,
+              color: textPrimary,
+              textShadow: `0 0 10px ${primaryColor}`,
+              fontWeight: 600,
+            }}
+          >
+            Você não completou a tarefa diária a tempo.
           </Typography>
-        </Box>
-        <Typography
-          variant="h5"
-          sx={{
-            mb: 2,
-            color: '#00D4FF',
-            textShadow: '0 0 10px #00D4FF',
-            fontWeight: 600,
-          }}
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
         >
-          Você não completou a tarefa diária a tempo.
-        </Typography>
-        <Typography
-          variant="body1"
-          sx={{
-            mb: 4,
-            color: '#B0E0FF',
-            lineHeight: 1.8,
-          }}
+          <Typography
+            variant="body1"
+            sx={{
+              mb: 4,
+              color: textSecondary,
+              lineHeight: 1.8,
+            }}
+          >
+            Para desbloquear o aplicativo, você deve realizar uma punição.
+          </Typography>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          Para desbloquear o aplicativo, você deve realizar uma punição.
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{
-            mb: 3,
-            fontWeight: 'bold',
-            color: '#00D4FF',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-          }}
-        >
-          Descreva a punição que você realizou:
-        </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              mb: 3,
+              fontWeight: 'bold',
+              color: textPrimary,
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+            }}
+          >
+            Descreva a punição que você realizou:
+          </Typography>
+        </motion.div>
         <TextField
           fullWidth
           multiline
@@ -117,66 +164,79 @@ const BlockedScreen = ({ onUnblock }) => {
           sx={{
             mb: 3,
             '& .MuiOutlinedInput-root': {
-              color: '#00D4FF',
+              color: textPrimary,
               '& fieldset': {
-                borderColor: 'rgba(0, 212, 255, 0.5)',
+                borderColor: `${primaryColor}80`,
               },
               '&:hover fieldset': {
-                borderColor: 'rgba(0, 212, 255, 0.8)',
+                borderColor: `${primaryColor}CC`,
               },
               '&.Mui-focused fieldset': {
-                borderColor: '#00D4FF',
-                boxShadow: '0 0 10px rgba(0, 212, 255, 0.5)',
+                borderColor: primaryColor,
+                boxShadow: `0 0 10px ${primaryColor}80`,
               },
             },
             '& .MuiInputBase-input::placeholder': {
-              color: '#6B7A99',
+              color: textSecondary,
+              opacity: 0.6,
             },
           }}
         />
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            size="large"
-            fullWidth
-            onClick={handleSubmit}
-            sx={{
-              py: 1.5,
-              fontSize: '1.1rem',
-              borderColor: '#00D4FF',
-              color: '#00D4FF',
-              borderWidth: '2px',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-              boxShadow: '0 0 20px rgba(0, 212, 255, 0.3)',
-              '&:hover': {
-                borderColor: '#00D4FF',
-                backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                boxShadow: '0 0 30px rgba(0, 212, 255, 0.6)',
-              },
-            }}
-          >
-            Sim
-          </Button>
-          <Button
-            variant="outlined"
-            size="large"
-            fullWidth
-            onClick={() => {}}
-            disabled
-            sx={{
-              py: 1.5,
-              fontSize: '1.1rem',
-              borderColor: '#6B7A99',
-              color: '#6B7A99',
-              borderWidth: '2px',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-            }}
-          >
-            Não
-          </Button>
-        </Box>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              style={{ flex: 1 }}
+            >
+              <Button
+                variant="outlined"
+                size="large"
+                fullWidth
+                onClick={handleSubmit}
+                sx={{
+                  py: 1.5,
+                  fontSize: '1.1rem',
+                  borderColor: primaryColor,
+                  color: textPrimary,
+                  borderWidth: '2px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  boxShadow: `0 0 20px ${primaryColor}4D`,
+                  '&:hover': {
+                    borderColor: primaryColor,
+                    backgroundColor: `${primaryColor}1A`,
+                    boxShadow: `0 0 30px ${primaryColor}99`,
+                  },
+                }}
+              >
+                Sim
+              </Button>
+            </motion.div>
+            <Button
+              variant="outlined"
+              size="large"
+              fullWidth
+              onClick={() => {}}
+              disabled
+              sx={{
+                py: 1.5,
+                fontSize: '1.1rem',
+                borderColor: '#6B7A99',
+                color: '#6B7A99',
+                borderWidth: '2px',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+              }}
+            >
+              Não
+            </Button>
+          </Box>
+        </motion.div>
         <Typography
           variant="caption"
           sx={{

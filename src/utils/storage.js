@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   TASKS: 'leveling_tasks',
   NOTIFICATIONS: 'leveling_notifications',
   BLOCKED: 'leveling_blocked',
+  THEME: 'leveling_theme',
 };
 
 export const getPlayerData = () => {
@@ -74,5 +75,15 @@ export const getXPForNextLevel = (currentLevel) => {
 // Calcular XP necessário para próximo nível de habilidade
 export const getSkillXPForNextLevel = (currentLevel) => {
   return currentLevel * 50;
+};
+
+// Gerenciamento de tema
+export const getSelectedTheme = () => {
+  const theme = localStorage.getItem(STORAGE_KEYS.THEME);
+  return theme || 'soloLeveling';
+};
+
+export const saveSelectedTheme = (themeId) => {
+  localStorage.setItem(STORAGE_KEYS.THEME, themeId);
 };
 

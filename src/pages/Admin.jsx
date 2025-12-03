@@ -19,9 +19,12 @@ import {
   DialogContent,
   DialogActions,
   Switch,
+  useTheme,
 } from '@mui/material';
-import { Add, Delete, Edit } from '@mui/icons-material';
-import { getTasks, saveTasks, getPlayerData, savePlayerData } from '../utils/storage';
+import { Add, Delete, Edit, Palette } from '@mui/icons-material';
+import { motion } from 'framer-motion';
+import { getTasks, saveTasks, getPlayerData, savePlayerData, getSelectedTheme, saveSelectedTheme } from '../utils/storage';
+import { themes } from '../themes';
 
 // Funções auxiliares para gerenciar tarefas concluídas
 const COMPLETED_TASKS_KEY = 'leveling_completed_tasks';
@@ -42,8 +45,14 @@ const removeCompletedTask = (taskId) => {
 };
 
 const Admin = () => {
+  const theme = useTheme();
+  const primaryColor = theme.palette.primary.main;
+  const textPrimary = theme.palette.text.primary;
+  const textSecondary = theme.palette.text.secondary;
+  
   const [tasks, setTasks] = useState([]);
   const [playerData, setPlayerData] = useState(null);
+  const [selectedTheme, setSelectedTheme] = useState(getSelectedTheme());
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -187,6 +196,23 @@ const Admin = () => {
     setTasks(updatedTasks);
   };
 
+  const handleThemeChange = (themeId) => {
+    saveSelectedTheme(themeId);
+    setSelectedTheme(themeId);
+    // Disparar evento para atualizar o tema no App
+    window.dispatchEvent(new CustomEvent('themeChanged'));
+  };
+
+  useEffect(() => {
+    const handleThemeChangeEvent = () => {
+      setSelectedTheme(getSelectedTheme());
+    };
+    window.addEventListener('themeChanged', handleThemeChangeEvent);
+    return () => {
+      window.removeEventListener('themeChanged', handleThemeChangeEvent);
+    };
+  }, []);
+
   const skillNames = {
     strength: 'Força',
     vitality: 'Vitalidade',
@@ -203,54 +229,87 @@ const Admin = () => {
     { value: 'persistence', label: 'Persistência' },
   ];
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.4,
+        ease: [0.22, 1, 0.36, 1],
+      },
+    },
+  };
+
   return (
     <Box sx={{ p: 3, minHeight: '100vh', backgroundColor: 'background.default' }}>
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-          mb: 4,
-          border: '1px solid rgba(0, 212, 255, 0.3)',
-          p: 2,
-        }}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Typography
-          variant="h4"
-          component="h1"
+        <Box
           sx={{
-            fontWeight: 'bold',
-            color: '#00D4FF',
-            textShadow: '0 0 10px #00D4FF, 0 0 20px #00D4FF',
-            textTransform: 'uppercase',
-            letterSpacing: '3px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            mb: 4,
+            border: `1px solid ${primaryColor}4D`,
+            p: 2,
           }}
         >
-          ADMIN - GERENCIAR TEMPLATES DE TAREFAS
-        </Typography>
-      </Box>
+          <Typography
+            variant="h5"
+            component="h1"
+            sx={{
+              fontWeight: 'bold',
+              color: textPrimary,
+              textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
+              textTransform: 'uppercase',
+              letterSpacing: '2px',
+              fontSize: '1.25rem',
+            }}
+          >
+            ADMIN - GERENCIAR TEMPLATES DE TAREFAS
+          </Typography>
+        </Box>
+      </motion.div>
 
-      
-      <Paper
-        sx={{
-          p: 3,
-          mb: 4,
-          backgroundColor: 'background.paper',
-          border: '2px solid rgba(0, 212, 255, 0.5)',
-          boxShadow: '0 0 30px rgba(0, 212, 255, 0.2)',
-        }}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Typography
-          variant="h6"
-          gutterBottom
+        <Paper
           sx={{
-            mb: 3,
-            color: '#00D4FF',
-            textShadow: '0 0 10px #00D4FF',
-            textTransform: 'uppercase',
-            letterSpacing: '2px',
+            p: 3,
+            mb: 4,
+            backgroundColor: 'background.paper',
+            border: `2px solid ${primaryColor}80`,
+            boxShadow: `0 0 30px ${primaryColor}33`,
           }}
         >
+          <Typography
+            variant="h6"
+            gutterBottom
+            sx={{
+              mb: 3,
+              color: textPrimary,
+              textShadow: `0 0 10px ${primaryColor}`,
+              textTransform: 'uppercase',
+              letterSpacing: '2px',
+            }}
+          >
           {editDialog.open ? 'Editar Template de Tarefa' : 'Adicionar Novo Template de Tarefa'}
         </Typography>
 
@@ -296,7 +355,7 @@ const Admin = () => {
             />
           </Grid>
           <Grid item xs={12}>
-            <Typography variant="body2" sx={{ mb: 1, color: '#B0E0FF', fontWeight: 600 }}>
+            <Typography variant="body2" sx={{ mb: 1, color: textSecondary, fontWeight: 600 }}>
               Habilidades (pode selecionar múltiplas):
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -313,17 +372,18 @@ const Admin = () => {
                   onClick={() => handleSkillChange(skill.value)}
                   sx={{
                     borderColor: formData.skills.includes(skill.value)
-                      ? '#00D4FF'
-                      : 'rgba(0, 212, 255, 0.3)',
-                    color: formData.skills.includes(skill.value) ? '#00D4FF' : '#6B7A99',
+                      ? primaryColor
+                      : `${primaryColor}4D`,
+                    color: formData.skills.includes(skill.value) ? textPrimary : textSecondary,
+                    opacity: formData.skills.includes(skill.value) ? 1 : 0.6,
                     backgroundColor: formData.skills.includes(skill.value)
-                      ? 'rgba(0, 212, 255, 0.2)'
+                      ? `${primaryColor}33`
                       : 'transparent',
                     border: '1px solid',
                     cursor: 'pointer',
                     '&:hover': {
-                      borderColor: '#00D4FF',
-                      backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                      borderColor: primaryColor,
+                      backgroundColor: `${primaryColor}1A`,
                     },
                   }}
                   variant={formData.skills.includes(skill.value) ? 'filled' : 'outlined'}
@@ -354,72 +414,109 @@ const Admin = () => {
             />
           </Grid>
           <Grid item xs={12}>
-            <Button
-              variant="contained"
-              startIcon={editDialog.open ? <Edit /> : <Add />}
-              onClick={editDialog.open ? handleUpdate : handleSubmit}
-              fullWidth
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              {editDialog.open ? 'Atualizar Template' : 'Adicionar Template'}
-            </Button>
-            {editDialog.open && (
               <Button
-                variant="outlined"
-                onClick={() => {
-                  setEditDialog({ open: false, task: null });
-                  resetForm();
-                }}
+                variant="contained"
+                startIcon={editDialog.open ? <Edit /> : <Add />}
+                onClick={editDialog.open ? handleUpdate : handleSubmit}
                 fullWidth
-                sx={{ mt: 2 }}
               >
-                Cancelar
+                {editDialog.open ? 'Atualizar Template' : 'Adicionar Template'}
               </Button>
+            </motion.div>
+            {editDialog.open && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setEditDialog({ open: false, task: null });
+                    resetForm();
+                  }}
+                  fullWidth
+                  sx={{ mt: 2 }}
+                >
+                  Cancelar
+                </Button>
+              </motion.div>
             )}
           </Grid>
         </Grid>
       </Paper>
+      </motion.div>
 
-      <Typography
-        variant="h6"
-        gutterBottom
-        sx={{
-          mb: 2,
-          color: '#00D4FF',
-          textShadow: '0 0 10px #00D4FF',
-          textTransform: 'uppercase',
-          letterSpacing: '2px',
-        }}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
       >
-        Templates de Tarefas ({tasks.length})
-      </Typography>
+        <Typography
+          variant="h6"
+          gutterBottom
+          sx={{
+            mb: 2,
+            color: textPrimary,
+            textShadow: `0 0 10px ${primaryColor}`,
+            textTransform: 'uppercase',
+            letterSpacing: '2px',
+          }}
+        >
+          Templates de Tarefas ({tasks.length})
+        </Typography>
+      </motion.div>
 
       {tasks.length === 0 ? (
-        <Typography sx={{ color: '#6B7A99', textAlign: 'center', py: 4 }}>
-          Nenhum template de tarefa cadastrado
-        </Typography>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <Typography sx={{ color: textSecondary, opacity: 0.7, textAlign: 'center', py: 4 }}>
+            Nenhum template de tarefa cadastrado
+          </Typography>
+        </motion.div>
       ) : (
-        tasks.map((task) => (
-          <Paper
-            key={task.id}
-            sx={{
-              p: 2.5,
-              mb: 2,
-              backgroundColor: 'background.paper',
-              border: '1px solid rgba(0, 212, 255, 0.3)',
-              boxShadow: '0 0 20px rgba(0, 212, 255, 0.1)',
-            }}
-          >
+        <Box>
+          {tasks.map((task, index) => (
+            <motion.div 
+              key={task.id} 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ 
+                duration: 0.4, 
+                delay: index * 0.05,
+                ease: [0.22, 1, 0.36, 1] 
+              }}
+              whileHover={{ scale: 1.02, y: -2 }}
+            >
+              <Paper
+                sx={{
+                  p: 2.5,
+                  mb: 2,
+                  backgroundColor: 'background.paper',
+                  border: `1px solid ${primaryColor}4D`,
+                  boxShadow: `0 0 20px ${primaryColor}1A`,
+                }}
+              >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
               <Box sx={{ flex: 1 }}>
-                <Typography variant="h6" sx={{ color: '#00D4FF', fontWeight: 600, mb: 1 }}>
+                <Typography variant="h6" sx={{ color: textPrimary, fontWeight: 600, mb: 1 }}>
                   {task.title}
                 </Typography>
-                <Typography variant="body2" sx={{ mb: 1.5, color: '#B0E0FF', lineHeight: 1.6 }}>
+                <Typography variant="body2" sx={{ mb: 1.5, color: textSecondary, lineHeight: 1.6 }}>
                   {task.description}
                 </Typography>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
-                  <Typography variant="body2" sx={{ color: '#B0E0FF' }}>
+                  <Typography variant="body2" sx={{ color: textSecondary }}>
                     Status:
                   </Typography>
                   <FormControlLabel
@@ -429,19 +526,19 @@ const Admin = () => {
                         onChange={() => handleToggleActive(task.id)}
                         sx={{
                           '& .MuiSwitch-switchBase.Mui-checked': {
-                            color: '#00FF88',
+                            color: theme.palette.secondary.main,
                             '&:hover': {
-                              backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                              backgroundColor: `${theme.palette.secondary.main}1A`,
                             },
                           },
                           '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: '#00FF88',
+                            backgroundColor: theme.palette.secondary.main,
                           },
                         }}
                       />
                     }
                     label={
-                      <Typography variant="body2" sx={{ color: task.active !== false ? '#00FF88' : '#FF6B6B' }}>
+                      <Typography variant="body2" sx={{ color: task.active !== false ? theme.palette.secondary.main : '#FF6B6B' }}>
                         {task.active !== false ? 'Ativa' : 'Inativa'}
                       </Typography>
                     }
@@ -453,18 +550,18 @@ const Admin = () => {
                     label={task.type === 'common' ? 'Comum' : 'Por Tempo'}
                     size="small"
                     sx={{
-                      backgroundColor: 'rgba(0, 212, 255, 0.2)',
-                      color: '#00D4FF',
-                      border: '1px solid rgba(0, 212, 255, 0.5)',
+                      backgroundColor: `${primaryColor}33`,
+                      color: textPrimary,
+                      border: `1px solid ${primaryColor}80`,
                     }}
                   />
                   <Chip
                     label={`${task.xp} XP`}
                     size="small"
                     sx={{
-                      backgroundColor: 'rgba(0, 212, 255, 0.2)',
-                      color: '#00D4FF',
-                      border: '1px solid rgba(0, 212, 255, 0.5)',
+                      backgroundColor: `${primaryColor}33`,
+                      color: textPrimary,
+                      border: `1px solid ${primaryColor}80`,
                     }}
                   />
                   {(() => {
@@ -479,9 +576,9 @@ const Admin = () => {
                         label={skillNames[skill]}
                         size="small"
                         sx={{
-                          backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                          color: '#B0E0FF',
-                          border: '1px solid rgba(0, 212, 255, 0.3)',
+                          backgroundColor: `${primaryColor}1A`,
+                          color: textSecondary,
+                          border: `1px solid ${primaryColor}4D`,
                         }}
                       />
                     ));
@@ -489,44 +586,61 @@ const Admin = () => {
                 </Box>
               </Box>
               <Box>
-                <IconButton
-                  onClick={() => handleEdit(task)}
-                  sx={{
-                    color: '#00D4FF',
-                    '&:hover': {
-                      backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                      boxShadow: '0 0 10px rgba(0, 212, 255, 0.5)',
-                    },
-                  }}
+                <motion.div
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                 >
-                  <Edit />
-                </IconButton>
-                <IconButton
-                  onClick={() => handleDelete(task.id)}
-                  sx={{
-                    color: '#FF0000',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 0, 0, 0.1)',
-                      boxShadow: '0 0 10px rgba(255, 0, 0, 0.5)',
-                    },
-                  }}
+                  <IconButton
+                    onClick={() => handleEdit(task)}
+                    sx={{
+                      color: primaryColor,
+                      '&:hover': {
+                        backgroundColor: `${primaryColor}1A`,
+                        boxShadow: `0 0 10px ${primaryColor}80`,
+                      },
+                    }}
+                  >
+                    <Edit />
+                  </IconButton>
+                </motion.div>
+                <motion.div
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                 >
-                  <Delete />
-                </IconButton>
+                  <IconButton
+                    onClick={() => handleDelete(task.id)}
+                    sx={{
+                      color: '#FF0000',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                        boxShadow: '0 0 10px rgba(255, 0, 0, 0.5)',
+                      },
+                    }}
+                  >
+                    <Delete />
+                  </IconButton>
+                </motion.div>
               </Box>
             </Box>
           </Paper>
-        ))
+            </motion.div>
+          ))}
+        </Box>
       )}
 
-{playerData && (
-        <Paper
+      {playerData && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <Paper
           sx={{
             p: 3,
             mb: 4,
             backgroundColor: 'background.paper',
-            border: '2px solid rgba(0, 212, 255, 0.5)',
-            boxShadow: '0 0 30px rgba(0, 212, 255, 0.2)',
+            border: `2px solid ${primaryColor}80`,
+            boxShadow: `0 0 30px ${primaryColor}33`,
           }}
         >
           <Typography
@@ -534,8 +648,8 @@ const Admin = () => {
             gutterBottom
             sx={{
               mb: 3,
-              color: '#00D4FF',
-              textShadow: '0 0 10px #00D4FF',
+              color: textPrimary,
+              textShadow: `0 0 10px ${primaryColor}`,
               textTransform: 'uppercase',
               letterSpacing: '2px',
             }}
@@ -565,8 +679,8 @@ const Admin = () => {
 
             {skillsList.map((skill) => (
               <Grid item xs={12} sm={6} md={4} key={skill.value}>
-                <Paper sx={{ p: 2, backgroundColor: 'rgba(0, 212, 255, 0.05)' }}>
-                  <Typography variant="subtitle1" sx={{ color: '#00D4FF', mb: 1 }}>
+                <Paper sx={{ p: 2, backgroundColor: `${primaryColor}0D` }}>
+                  <Typography variant="subtitle1" sx={{ color: textPrimary, mb: 1 }}>
                     {skill.label}
                   </Typography>
                   <TextField
@@ -591,7 +705,120 @@ const Admin = () => {
             ))}
           </Grid>
         </Paper>
+        </motion.div>
       )}
+
+      {/* Seção de Seleção de Tema */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Paper
+          sx={{
+            p: 3,
+            mb: 4,
+            backgroundColor: 'background.paper',
+            border: `2px solid ${primaryColor}80`,
+            boxShadow: `0 0 30px ${primaryColor}33`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <Palette sx={{ color: primaryColor, fontSize: 32 }} />
+            <Typography
+              variant="h6"
+              sx={{
+                color: textPrimary,
+                textShadow: `0 0 10px ${primaryColor}`,
+                textTransform: 'uppercase',
+                letterSpacing: '2px',
+                fontWeight: 600,
+              }}
+            >
+              Selecionar Tema
+            </Typography>
+          </Box>
+          <Grid container spacing={2}>
+            {Object.values(themes).map((themeItem) => (
+              <Grid item xs={12} sm={6} key={themeItem.id}>
+                <motion.div
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleThemeChange(themeItem.id)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Paper
+                    sx={{
+                      p: 2,
+                      border: selectedTheme === themeItem.id ? '2px solid' : '1px solid',
+                      borderColor: selectedTheme === themeItem.id ? primaryColor : `${primaryColor}4D`,
+                      backgroundColor: selectedTheme === themeItem.id ? `${primaryColor}1A` : 'background.paper',
+                      boxShadow: selectedTheme === themeItem.id 
+                        ? `0 0 20px ${primaryColor}4D` 
+                        : `0 0 10px ${primaryColor}1A`,
+                      transition: 'all 0.3s',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      minHeight: 200,
+                      backgroundImage: themeItem.backgroundImage ? `url(${themeItem.backgroundImage})` : 'none',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: themeItem.palette.background.default,
+                        opacity: 0.7,
+                        zIndex: 0,
+                        pointerEvents: 'none',
+                      },
+                    }}
+                  >
+                    <Box sx={{ position: 'relative', zIndex: 1 }}>
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          color: themeItem.palette.text.primary,
+                          fontWeight: 600,
+                          mb: 1,
+                          textShadow: `0 0 10px ${themeItem.palette.primary.main}`,
+                        }}
+                      >
+                        {themeItem.name}
+                      </Typography>
+                      <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+                        <Box
+                          sx={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: '50%',
+                            backgroundColor: themeItem.palette.primary.main,
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                            boxShadow: `0 0 10px ${themeItem.palette.primary.main}`,
+                          }}
+                        />
+                        <Box
+                          sx={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: '50%',
+                            backgroundColor: themeItem.palette.secondary.main,
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                            boxShadow: `0 0 10px ${themeItem.palette.secondary.main}`,
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  </Paper>
+                </motion.div>
+              </Grid>
+            ))}
+          </Grid>
+        </Paper>
+      </motion.div>
 
     </Box>
     

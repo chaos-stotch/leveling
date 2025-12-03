@@ -1,21 +1,28 @@
 import React from 'react';
-import { Box, Typography, Paper, Chip } from '@mui/material';
+import { Box, Typography, Paper, Chip, useTheme } from '@mui/material';
 import { EmojiEvents, TrendingUp, Refresh, ErrorOutline } from '@mui/icons-material';
+import { motion } from 'framer-motion';
 import { getNotifications } from '../utils/storage';
 
 const Notifications = () => {
+  const theme = useTheme();
+  const primaryColor = theme.palette.primary.main;
+  const textPrimary = theme.palette.text.primary;
+  const textSecondary = theme.palette.text.secondary;
+  
   const notifications = getNotifications();
 
   const getIcon = (type) => {
+    const secondaryColor = theme.palette.secondary.main;
     switch (type) {
       case 'level_up':
         return <EmojiEvents sx={{ color: '#FFD700', filter: 'drop-shadow(0 0 5px #FFD700)' }} />;
       case 'skill_level_up':
-        return <TrendingUp sx={{ color: '#00FF88', filter: 'drop-shadow(0 0 5px #00FF88)' }} />;
+        return <TrendingUp sx={{ color: secondaryColor, filter: `drop-shadow(0 0 5px ${secondaryColor})` }} />;
       case 'task_reset':
-        return <Refresh sx={{ color: '#00D4FF', filter: 'drop-shadow(0 0 5px #00D4FF)' }} />;
+        return <Refresh sx={{ color: primaryColor, filter: `drop-shadow(0 0 5px ${primaryColor})` }} />;
       default:
-        return <ErrorOutline sx={{ color: '#00D4FF', filter: 'drop-shadow(0 0 5px #00D4FF)' }} />;
+        return <ErrorOutline sx={{ color: primaryColor, filter: `drop-shadow(0 0 5px ${primaryColor})` }} />;
     }
   };
 
@@ -30,81 +37,126 @@ const Notifications = () => {
     });
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.4,
+        ease: [0.22, 1, 0.36, 1],
+      },
+    },
+  };
+
   return (
     <Box sx={{ p: 3, minHeight: '100vh', backgroundColor: 'background.default' }}>
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-          mb: 3,
-          border: '1px solid rgba(0, 212, 255, 0.3)',
-          p: 2,
-        }}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
-        <ErrorOutline sx={{ color: '#00D4FF', filter: 'drop-shadow(0 0 5px #00D4FF)' }} />
-        <Typography
-          variant="h4"
-          component="h1"
+        <Box
           sx={{
-            fontWeight: 'bold',
-            color: '#00D4FF',
-            textShadow: '0 0 10px #00D4FF, 0 0 20px #00D4FF',
-            textTransform: 'uppercase',
-            letterSpacing: '3px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            mb: 3,
+            border: `1px solid ${primaryColor}4D`,
+            p: 2,
           }}
         >
-          NOTIFICAÇÕES
-        </Typography>
-      </Box>
-
-      {notifications.length === 0 ? (
-        <Typography sx={{ color: '#6B7A99', textAlign: 'center', py: 4 }}>
-          Nenhuma notificação ainda
-        </Typography>
-      ) : (
-        notifications.map((notification) => (
-          <Paper
-            key={notification.id}
+          <ErrorOutline sx={{ color: textPrimary, filter: `drop-shadow(0 0 5px ${primaryColor})` }} />
+          <Typography
+            variant="h5"
+            component="h1"
             sx={{
-              p: 2.5,
-              mb: 2,
-              backgroundColor: 'background.paper',
-              border: '1px solid rgba(0, 212, 255, 0.3)',
-              boxShadow: '0 0 20px rgba(0, 212, 255, 0.1)',
+              fontWeight: 'bold',
+              color: textPrimary,
+              textShadow: `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`,
+              textTransform: 'uppercase',
+              letterSpacing: '2px',
+              fontSize: '1.25rem',
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'start', gap: 2 }}>
-              <Box sx={{ mt: 0.5 }}>{getIcon(notification.type)}</Box>
-              <Box sx={{ flex: 1 }}>
-                <Typography
-                  variant="h6"
-                  gutterBottom
-                  sx={{
-                    color: '#00D4FF',
-                    textShadow: '0 0 5px #00D4FF',
-                    fontWeight: 600,
-                  }}
-                >
-                  {notification.title}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1.5, color: '#B0E0FF', lineHeight: 1.6 }}>
-                  {notification.message}
-                </Typography>
-                <Chip
-                  label={formatDate(notification.timestamp)}
-                  size="small"
-                  sx={{
-                    borderColor: 'rgba(0, 212, 255, 0.5)',
-                    color: '#B0E0FF',
-                    backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                  }}
-                  variant="outlined"
-                />
+            NOTIFICAÇÕES
+          </Typography>
+        </Box>
+      </motion.div>
+
+      {notifications.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <Typography sx={{ color: textSecondary, opacity: 0.7, textAlign: 'center', py: 4 }}>
+            Nenhuma notificação ainda
+          </Typography>
+        </motion.div>
+      ) : (
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {notifications.map((notification, index) => (
+            <motion.div key={notification.id} variants={itemVariants}>
+              <Paper
+                component={motion.div}
+                whileHover={{ scale: 1.02, y: -2 }}
+                transition={{ duration: 0.2 }}
+                sx={{
+                  p: 2.5,
+                  mb: 2,
+                  backgroundColor: 'background.paper',
+                  border: `1px solid ${primaryColor}4D`,
+                  boxShadow: `0 0 20px ${primaryColor}1A`,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'start', gap: 2 }}>
+                  <Box sx={{ mt: 0.5 }}>{getIcon(notification.type)}</Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography
+                      variant="h6"
+                      gutterBottom
+                      sx={{
+                        color: textPrimary,
+                        textShadow: `0 0 5px ${primaryColor}`,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {notification.title}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1.5, color: textSecondary, lineHeight: 1.6 }}>
+                      {notification.message}
+                    </Typography>
+                    <Chip
+                      label={formatDate(notification.timestamp)}
+                      size="small"
+                      sx={{
+                        borderColor: `${primaryColor}80`,
+                        color: textSecondary,
+                        backgroundColor: `${primaryColor}1A`,
+                      }}
+                      variant="outlined"
+                    />
               </Box>
             </Box>
           </Paper>
-        ))
+            </motion.div>
+          ))}
+        </motion.div>
       )}
     </Box>
   );

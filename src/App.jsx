@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { BottomNavigation, BottomNavigationAction, Box } from '@mui/material';
 import { BarChart, Assignment, Notifications, Settings } from '@mui/icons-material';
+import { motion, AnimatePresence } from 'framer-motion';
 import Statistics from './pages/Statistics';
 import Tasks from './pages/Tasks';
 import NotificationsPage from './pages/Notifications';
@@ -9,166 +10,143 @@ import Admin from './pages/Admin';
 import NotificationModal from './components/NotificationModal';
 import BlockedScreen from './components/BlockedScreen';
 import ClickSoundProvider from './components/ClickSoundProvider';
+import SpotifyPlayer from './components/SpotifyPlayer';
 import { useSound } from './hooks/useSound';
-import { isBlocked, getNotifications } from './utils/storage';
+import { isBlocked, getNotifications, getSelectedTheme } from './utils/storage';
+import { getTheme } from './themes';
 
-const theme = createTheme({
-  palette: {
-    mode: 'dark',
-    primary: {
-      main: '#00D4FF',
-    },
-    secondary: {
-      main: '#00FF88',
-    },
-    background: {
-      default: '#0a0e27',
-      paper: '#0f1629',
-    },
-    text: {
-      primary: '#00D4FF',
-      secondary: '#B0E0FF',
-    },
-  },
-  typography: {
-    fontFamily: "'Roboto', 'Segoe UI', sans-serif",
-    h4: {
-      fontWeight: 700,
-      textShadow: '0 0 10px #00D4FF, 0 0 20px #00D4FF',
-    },
-    h5: {
-      fontWeight: 600,
-      textShadow: '0 0 8px #00D4FF, 0 0 15px #00D4FF',
-    },
-    h6: {
-      fontWeight: 600,
-      textShadow: '0 0 5px #00D4FF',
-    },
-  },
-  components: {
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none',
-          backgroundColor: '#0f1629',
-          border: '1px solid rgba(0, 212, 255, 0.3)',
-          boxShadow: '0 0 20px rgba(0, 212, 255, 0.1), inset 0 0 20px rgba(0, 212, 255, 0.05)',
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          fontWeight: 600,
-          boxShadow: '0 0 10px rgba(0, 212, 255, 0.3)',
-          '&:hover': {
-            boxShadow: '0 0 20px rgba(0, 212, 255, 0.5)',
-          },
-        },
-        contained: {
-          backgroundColor: '#00D4FF',
-          color: '#0a0e27',
-          '&:hover': {
-            backgroundColor: '#00B8E6',
+const createAppTheme = (themeConfig) => {
+  return createTheme({
+    palette: themeConfig.palette,
+    typography: themeConfig.typography,
+    components: {
+      MuiPaper: {
+        styleOverrides: {
+          root: {
+            backgroundImage: 'none',
+            backgroundColor: themeConfig.palette.background.paper,
+            border: themeConfig.effects.paperBorder,
+            boxShadow: themeConfig.effects.paperShadow,
           },
         },
       },
-    },
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            color: '#00D4FF',
-            '& fieldset': {
-              borderColor: 'rgba(0, 212, 255, 0.5)',
-            },
-            '&:hover fieldset': {
-              borderColor: 'rgba(0, 212, 255, 0.8)',
-            },
-            '&.Mui-focused fieldset': {
-              borderColor: '#00D4FF',
-              boxShadow: '0 0 10px rgba(0, 212, 255, 0.5)',
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            textTransform: 'none',
+            fontWeight: 600,
+            boxShadow: themeConfig.effects.buttonShadow,
+            '&:hover': {
+              boxShadow: themeConfig.effects.buttonShadowHover,
             },
           },
-          '& .MuiInputLabel-root': {
-            color: '#B0E0FF',
+          contained: {
+            backgroundColor: themeConfig.palette.primary.main,
+            color: themeConfig.palette.background.default,
+            '&:hover': {
+              backgroundColor: themeConfig.palette.primary.dark || themeConfig.palette.primary.main,
+            },
+          },
+        },
+      },
+      MuiTextField: {
+        styleOverrides: {
+          root: {
+            '& .MuiOutlinedInput-root': {
+              color: themeConfig.palette.text.primary,
+              '& fieldset': {
+                borderColor: themeConfig.effects.textFieldBorder,
+              },
+              '&:hover fieldset': {
+                borderColor: themeConfig.effects.textFieldBorderHover,
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: themeConfig.palette.primary.main,
+                boxShadow: themeConfig.effects.textFieldShadow,
+              },
+            },
+            '& .MuiInputLabel-root': {
+              color: themeConfig.palette.text.secondary,
+              '&.Mui-focused': {
+                color: themeConfig.palette.primary.main,
+              },
+            },
+            '& .MuiInputBase-input::placeholder': {
+              color: themeConfig.palette.text.secondary,
+              opacity: 0.6,
+            },
+          },
+        },
+      },
+      MuiSelect: {
+        styleOverrides: {
+          root: {
+            color: themeConfig.palette.text.primary,
+            '& .MuiOutlinedInput-notchedOutline': {
+              borderColor: themeConfig.effects.textFieldBorder,
+            },
+            '&:hover .MuiOutlinedInput-notchedOutline': {
+              borderColor: themeConfig.effects.textFieldBorderHover,
+            },
+            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              borderColor: themeConfig.palette.primary.main,
+              boxShadow: themeConfig.effects.textFieldShadow,
+            },
+          },
+        },
+      },
+      MuiInputLabel: {
+        styleOverrides: {
+          root: {
+            color: themeConfig.palette.text.secondary,
             '&.Mui-focused': {
-              color: '#00D4FF',
+              color: themeConfig.palette.primary.main,
             },
           },
-          '& .MuiInputBase-input::placeholder': {
-            color: '#6B7A99',
+        },
+      },
+      MuiCheckbox: {
+        styleOverrides: {
+          root: {
+            color: themeConfig.palette.text.secondary,
+            opacity: 0.6,
+            '&.Mui-checked': {
+              color: themeConfig.effects.checkboxColor,
+            },
+          },
+        },
+      },
+      MuiFormControlLabel: {
+        styleOverrides: {
+          label: {
+            color: themeConfig.palette.text.secondary,
+          },
+        },
+      },
+      MuiBottomNavigation: {
+        styleOverrides: {
+          root: {
+            backgroundColor: themeConfig.palette.background.paper,
+            borderTop: themeConfig.effects.bottomNavBorder,
+            boxShadow: themeConfig.effects.bottomNavShadow,
+          },
+        },
+      },
+      MuiBottomNavigationAction: {
+        styleOverrides: {
+          root: {
+            color: themeConfig.palette.text.secondary,
+            opacity: 0.6,
+            '&.Mui-selected': {
+              color: themeConfig.effects.bottomNavSelected,
+              textShadow: `0 0 10px ${themeConfig.effects.bottomNavSelected}`,
+            },
           },
         },
       },
     },
-    MuiSelect: {
-      styleOverrides: {
-        root: {
-          color: '#00D4FF',
-          '& .MuiOutlinedInput-notchedOutline': {
-            borderColor: 'rgba(0, 212, 255, 0.5)',
-          },
-          '&:hover .MuiOutlinedInput-notchedOutline': {
-            borderColor: 'rgba(0, 212, 255, 0.8)',
-          },
-          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: '#00D4FF',
-            boxShadow: '0 0 10px rgba(0, 212, 255, 0.5)',
-          },
-        },
-      },
-    },
-    MuiInputLabel: {
-      styleOverrides: {
-        root: {
-          color: '#B0E0FF',
-          '&.Mui-focused': {
-            color: '#00D4FF',
-          },
-        },
-      },
-    },
-    MuiCheckbox: {
-      styleOverrides: {
-        root: {
-          color: '#6B7A99',
-          '&.Mui-checked': {
-            color: '#00D4FF',
-          },
-        },
-      },
-    },
-    MuiFormControlLabel: {
-      styleOverrides: {
-        label: {
-          color: '#B0E0FF',
-        },
-      },
-    },
-    MuiBottomNavigation: {
-      styleOverrides: {
-        root: {
-          backgroundColor: '#0f1629',
-          borderTop: '1px solid rgba(0, 212, 255, 0.3)',
-          boxShadow: '0 -5px 20px rgba(0, 212, 255, 0.1)',
-        },
-      },
-    },
-    MuiBottomNavigationAction: {
-      styleOverrides: {
-        root: {
-          color: '#6B7A99',
-          '&.Mui-selected': {
-            color: '#00D4FF',
-            textShadow: '0 0 10px #00D4FF',
-          },
-        },
-      },
-    },
-  },
-});
+  });
+};
 
 function App() {
   const [currentPage, setCurrentPage] = useState(0);
@@ -177,7 +155,21 @@ function App() {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationQueue, setNotificationQueue] = useState([]);
   const [lastNotificationCheck, setLastNotificationCheck] = useState(Date.now());
+  const [selectedThemeId, setSelectedThemeId] = useState(getSelectedTheme());
   const { playSound } = useSound();
+
+  const themeConfig = getTheme(selectedThemeId);
+  const theme = createAppTheme(themeConfig);
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setSelectedThemeId(getSelectedTheme());
+    };
+    window.addEventListener('themeChanged', handleThemeChange);
+    return () => {
+      window.removeEventListener('themeChanged', handleThemeChange);
+    };
+  }, []);
 
   useEffect(() => {
     // Verificar se está bloqueado
@@ -252,32 +244,115 @@ function App() {
     { component: <Admin />, label: 'Admin', icon: <Settings /> },
   ];
 
+  const pageVariants = {
+    initial: {
+      opacity: 0,
+      x: 20,
+      scale: 0.98,
+    },
+    animate: {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      transition: {
+        duration: 0.4,
+        ease: [0.22, 1, 0.36, 1], // easeOutCubic
+      },
+    },
+    exit: {
+      opacity: 0,
+      x: -20,
+      scale: 0.98,
+      transition: {
+        duration: 0.3,
+        ease: [0.22, 1, 0.36, 1],
+      },
+    },
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ClickSoundProvider>
-        <Box sx={{ pb: 7, minHeight: '100vh', backgroundColor: 'background.default' }}>
-          {pages[currentPage].component}
-        </Box>
-        <BottomNavigation
-          value={currentPage}
-          onChange={(event, newValue) => {
-            setCurrentPage(newValue);
-          }}
-          showLabels
-          sx={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            borderTop: '1px solid',
-            borderColor: 'divider',
+        <Box 
+          sx={{ 
+            pb: 20, 
+            minHeight: '100vh', 
+            backgroundColor: 'background.default', 
+            position: 'relative', 
+            overflow: 'hidden',
+            backgroundImage: themeConfig.backgroundImage 
+              ? `url(${themeConfig.backgroundImage})` 
+              : 'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: themeConfig.palette.background.default,
+              backgroundImage: themeConfig.effects.backgroundOverlay,
+              opacity: 0.95,
+              zIndex: 0,
+            },
           }}
         >
-          {pages.map((page, index) => (
-            <BottomNavigationAction key={index} label={page.label} icon={page.icon} />
-          ))}
-        </BottomNavigation>
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentPage}
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                style={{ width: '100%' }}
+              >
+                {pages[currentPage].component}
+              </motion.div>
+            </AnimatePresence>
+          </Box>
+        </Box>
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          style={{ position: 'relative', zIndex: 1 }}
+        >
+          <BottomNavigation
+            value={currentPage}
+            onChange={(event, newValue) => {
+              setCurrentPage(newValue);
+            }}
+            showLabels
+            sx={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+            }}
+          >
+            {pages.map((page, index) => (
+              <BottomNavigationAction 
+                key={index} 
+                label={page.label} 
+                icon={
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {page.icon}
+                  </motion.div>
+                } 
+              />
+            ))}
+          </BottomNavigation>
+        </motion.div>
+        <SpotifyPlayer />
         <NotificationModal
           open={showNotification}
           notification={notification}
