@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { BottomNavigation, BottomNavigationAction, Box } from '@mui/material';
-import { BarChart, Assignment, Notifications, Settings } from '@mui/icons-material';
+import { BarChart, Assignment, Notifications, Settings, ShoppingCart } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import Statistics from './pages/Statistics';
 import Tasks from './pages/Tasks';
 import NotificationsPage from './pages/Notifications';
 import Admin from './pages/Admin';
+import Shop from './pages/Shop';
 import NotificationModal from './components/NotificationModal';
 import BlockedScreen from './components/BlockedScreen';
 import ClickSoundProvider from './components/ClickSoundProvider';
@@ -244,6 +245,7 @@ function App() {
   const pages = [
     { component: <Statistics />, label: 'Estatísticas', icon: <BarChart /> },
     { component: <Tasks />, label: 'Tarefas', icon: <Assignment /> },
+    { component: <Shop />, label: 'Loja', icon: <ShoppingCart /> },
     { component: <NotificationsPage />, label: 'Notificações', icon: <Notifications /> },
     { component: <Admin />, label: 'Admin', icon: <Settings /> },
   ];

@@ -68,7 +68,7 @@ const removeCompletedTask = (taskId) => {
   saveCompletedTasks(filtered);
 };
 import { addXP } from '../utils/levelSystem';
-import { saveNotification } from '../utils/storage';
+import { saveNotification, addGold } from '../utils/storage';
 
 // Componente para item de tarefa arrastável
 const SortableTaskItem = ({
@@ -207,6 +207,17 @@ const SortableTaskItem = ({
             border: `1px solid ${primaryColor}80`,
           }}
         />
+        {task.gold > 0 && (
+          <Chip
+            label={`${task.gold} 🪙`}
+            size="small"
+            sx={{
+              backgroundColor: '#FFD70033',
+              color: '#FFD700',
+              border: '1px solid #FFD70080',
+            }}
+          />
+        )}
         {(() => {
           // Compatibilidade: suporta tanto task.skills (array) quanto task.skill (string antiga)
           const skills = task.skills
@@ -559,6 +570,16 @@ const Tasks = ({ onTaskComplete }) => {
         ? (Array.isArray(task.skills) ? task.skills : [task.skills])
         : (task.skill ? [task.skill] : null);
       addXP(task.xp, skills, playSound);
+      
+      // Adicionar ouro se a tarefa tiver ouro definido
+      if (task.gold && task.gold > 0) {
+        addGold(task.gold);
+      }
+            
+            // Adicionar ouro se a tarefa tiver ouro definido
+            if (task.gold && task.gold > 0) {
+              addGold(task.gold);
+            }
 
       // Tocar som de power down
       playSound('power-down');
@@ -946,6 +967,19 @@ const Tasks = ({ onTaskComplete }) => {
                         px: 2,
                       }}
                     />
+                    {focusedTask.gold > 0 && (
+                      <Chip
+                        label={`${focusedTask.gold} 🪙`}
+                        sx={{
+                          backgroundColor: '#FFD70033',
+                          color: '#FFD700',
+                          border: '1px solid #FFD70080',
+                          fontSize: '1rem',
+                          height: 40,
+                          px: 2,
+                        }}
+                      />
+                    )}
                     {(() => {
                       const skills = focusedTask.skills
                         ? (Array.isArray(focusedTask.skills) ? focusedTask.skills : [focusedTask.skills])

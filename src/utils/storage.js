@@ -5,16 +5,26 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'leveling_notifications',
   BLOCKED: 'leveling_blocked',
   THEME: 'leveling_theme',
+  SHOP_ITEMS: 'leveling_shop_items',
+  SHOP_CATEGORIES: 'leveling_shop_categories',
+  PURCHASED_ITEMS: 'leveling_purchased_items',
+  PURCHASE_HISTORY: 'leveling_purchase_history',
 };
 
 export const getPlayerData = () => {
   const data = localStorage.getItem(STORAGE_KEYS.PLAYER_DATA);
   if (data) {
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // Garantir que gold existe
+    if (parsed.gold === undefined) {
+      parsed.gold = 0;
+    }
+    return parsed;
   }
   return {
     level: 1,
     xp: 0,
+    gold: 0,
     skills: {
       strength: { level: 1, xp: 0 },
       vitality: { level: 1, xp: 0 },
@@ -85,5 +95,101 @@ export const getSelectedTheme = () => {
 
 export const saveSelectedTheme = (themeId) => {
   localStorage.setItem(STORAGE_KEYS.THEME, themeId);
+};
+
+// Funções para gerenciar ouro do jogador
+export const addGold = (amount) => {
+  const playerData = getPlayerData();
+  playerData.gold = (playerData.gold || 0) + amount;
+  savePlayerData(playerData);
+  return playerData.gold;
+};
+
+export const spendGold = (amount) => {
+  const playerData = getPlayerData();
+  if ((playerData.gold || 0) >= amount) {
+    playerData.gold = playerData.gold - amount;
+    savePlayerData(playerData);
+    return true;
+  }
+  return false;
+};
+
+export const setGold = (amount) => {
+  const playerData = getPlayerData();
+  playerData.gold = Math.max(0, amount);
+  savePlayerData(playerData);
+  return playerData.gold;
+};
+
+// Funções para gerenciar categorias da loja
+export const getShopCategories = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.SHOP_CATEGORIES);
+  if (data) {
+    return JSON.parse(data);
+  }
+  // Categorias padrão
+  return [
+    { id: 'default', name: 'Geral', order: 0 },
+  ];
+};
+
+export const saveShopCategories = (categories) => {
+  localStorage.setItem(STORAGE_KEYS.SHOP_CATEGORIES, JSON.stringify(categories));
+};
+
+// Funções para gerenciar itens da loja
+export const getShopItems = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.SHOP_ITEMS);
+  return data ? JSON.parse(data) : [];
+};
+
+export const saveShopItems = (items) => {
+  localStorage.setItem(STORAGE_KEYS.SHOP_ITEMS, JSON.stringify(items));
+};
+
+// Funções para gerenciar itens comprados
+export const getPurchasedItems = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.PURCHASED_ITEMS);
+  return data ? JSON.parse(data) : [];
+};
+
+export const addPurchasedItem = (itemId) => {
+  const purchased = getPurchasedItems();
+  if (!purchased.includes(itemId)) {
+    purchased.push(itemId);
+    localStorage.setItem(STORAGE_KEYS.PURCHASED_ITEMS, JSON.stringify(purchased));
+  }
+};
+
+export const isItemPurchased = (itemId) => {
+  const purchased = getPurchasedItems();
+  return purchased.includes(itemId);
+};
+
+// Funções para gerenciar histórico de compras
+export const getPurchaseHistory = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.PURCHASE_HISTORY);
+  return data ? JSON.parse(data) : [];
+};
+
+export const addPurchaseToHistory = (item, purchaseData = {}) => {
+  const history = getPurchaseHistory();
+  const purchase = {
+    id: Date.now(),
+    itemId: item.id,
+    itemTitle: item.title,
+    itemDescription: item.description,
+    itemImageUrl: item.imageUrl,
+    timestamp: new Date().toISOString(),
+    ...purchaseData,
+  };
+  history.unshift(purchase);
+  // Manter apenas as últimas 1000 compras
+  if (history.length > 1000) {
+    history.splice(1000);
+  }
+  localStorage.setItem(STORAGE_KEYS.PURCHASE_HISTORY, JSON.stringify(history));
+  return purchase;
 };
 

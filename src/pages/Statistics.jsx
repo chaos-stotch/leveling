@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Paper, LinearProgress, Grid, useTheme } from '@mui/material';
-import { FitnessCenter, Favorite, Speed, Psychology, Whatshot } from '@mui/icons-material';
+import { FitnessCenter, Favorite, Speed, Psychology, Whatshot, Star } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { getPlayerData, getXPForNextLevel, getSkillXPForNextLevel } from '../utils/storage';
 
@@ -146,9 +146,15 @@ const Statistics = () => {
               />
             </motion.div>
           </Box>
-          <Typography variant="body2" sx={{ color: textSecondary, fontSize: '0.85rem', opacity: 0.7 }}>
+          <Typography variant="body2" sx={{ color: textSecondary, fontSize: '0.85rem', opacity: 0.7, mb: 2 }}>
             Faltam {xpNeeded - playerData.xp} XP para o próximo nível
           </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 2, borderTop: `1px solid ${primaryColor}4D` }}>
+            <Star sx={{ color: '#FFD700', filter: 'drop-shadow(0 0 5px #FFD700)' }} />
+            <Typography variant="h6" sx={{ color: '#FFD700', fontWeight: 600, textShadow: '0 0 10px #FFD700' }}>
+              {playerData.gold || 0} 🪙
+            </Typography>
+          </Box>
         </Paper>
       </motion.div>
 

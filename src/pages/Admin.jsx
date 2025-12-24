@@ -20,11 +20,45 @@ import {
   DialogActions,
   Switch,
   useTheme,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import { Add, Delete, Edit, Palette } from '@mui/icons-material';
+import { Add, Delete, Edit, Palette, ShoppingCart, Category, DragIndicator, ArrowUpward, ArrowDownward } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { getTasks, saveTasks, getPlayerData, savePlayerData, getSelectedTheme, saveSelectedTheme } from '../utils/storage';
+import { 
+  getTasks, 
+  saveTasks, 
+  getPlayerData, 
+  savePlayerData, 
+  getSelectedTheme, 
+  saveSelectedTheme,
+  getShopItems,
+  saveShopItems,
+  getShopCategories,
+  saveShopCategories,
+  setGold,
+  getPurchasedItems,
+} from '../utils/storage';
 import { themes } from '../themes';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // Funções auxiliares para gerenciar tarefas concluídas
 const COMPLETED_TASKS_KEY = 'leveling_completed_tasks';
@@ -60,15 +94,54 @@ const Admin = () => {
     description: '',
     type: 'common',
     xp: 10,
+    gold: 0,
     skills: [],
     duration: 60,
     active: true,
   });
   const [editDialog, setEditDialog] = useState({ open: false, task: null });
+  const [shopItems, setShopItems] = useState([]);
+  const [shopCategories, setShopCategories] = useState([]);
+  const [shopItemForm, setShopItemForm] = useState({
+    title: '',
+    description: '',
+    imageUrl: '',
+    category: 'default',
+    price: 0,
+    requiredLevel: 0,
+    requiredTasks: [],
+    requiresGold: true,
+    requiresLevel: false,
+    requiresTasks: false,
+  });
+  const [shopItemEditDialog, setShopItemEditDialog] = useState({ open: false, item: null });
+  const [categoryForm, setCategoryForm] = useState({ name: '' });
+  const [activeShopCategoryId, setActiveShopCategoryId] = useState(null);
+  const [adminTab, setAdminTab] = useState(0);
+
+  // Sensores para drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 3,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 100,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     loadTasks();
     loadPlayerData();
+    loadShopItems();
+    loadShopCategories();
   }, []);
 
   const loadTasks = () => {
@@ -79,6 +152,16 @@ const Admin = () => {
   const loadPlayerData = () => {
     const data = getPlayerData();
     setPlayerData(data);
+  };
+
+  const loadShopItems = () => {
+    const items = getShopItems();
+    setShopItems(items);
+  };
+
+  const loadShopCategories = () => {
+    const categories = getShopCategories();
+    setShopCategories(categories);
   };
 
   const handleInputChange = (field, value) => {
@@ -123,6 +206,7 @@ const Admin = () => {
       description: task.description,
       type: task.type,
       xp: task.xp,
+      gold: task.gold || 0,
       skills: skills,
       duration: task.duration || 60,
       active: task.active !== false, // Default true se não definido
@@ -162,6 +246,7 @@ const Admin = () => {
       description: '',
       type: 'common',
       xp: 10,
+      gold: 0,
       skills: [],
       duration: 60,
       active: true,
@@ -170,7 +255,7 @@ const Admin = () => {
 
   const handlePlayerLevelChange = (field, value) => {
     const updatedData = { ...playerData };
-    if (field === 'level' || field === 'xp') {
+    if (field === 'level' || field === 'xp' || field === 'gold') {
       updatedData[field] = parseInt(value) || 0;
     } else if (field.includes('.')) {
       const [skill, skillField] = field.split('.');
@@ -180,6 +265,12 @@ const Admin = () => {
     }
     setPlayerData(updatedData);
     savePlayerData(updatedData);
+  };
+
+  const handleGoldChange = (value) => {
+    const gold = parseInt(value) || 0;
+    setGold(gold);
+    loadPlayerData();
   };
 
   const handleToggleActive = (taskId) => {
@@ -282,359 +373,48 @@ const Admin = () => {
               fontSize: '1.5rem',
             }}
           >
-            ADMIN - GERENCIAR TEMPLATES DE TAREFAS
+            ADMIN
           </Typography>
         </Box>
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <Paper
-          sx={{
-            p: 3,
-            mb: 4,
-            backgroundColor: 'background.paper',
-            border: `2px solid ${primaryColor}80`,
-            boxShadow: `0 0 30px ${primaryColor}33`,
-          }}
-        >
-          <Typography
-            variant="h6"
-            gutterBottom
-            sx={{
-              mb: 3,
-              color: textPrimary,
-              textShadow: titleTextShadow,
-              textTransform: 'uppercase',
-              letterSpacing: '2px',
-            }}
-          >
-          {editDialog.open ? 'Editar Template de Tarefa' : 'Adicionar Novo Template de Tarefa'}
-        </Typography>
-
-        <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="Título"
-              value={formData.title}
-              onChange={(e) => handleInputChange('title', e.target.value)}
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Descrição"
-              value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <FormControl fullWidth>
-              <InputLabel>Tipo</InputLabel>
-              <Select
-                value={formData.type}
-                label="Tipo"
-                onChange={(e) => handleInputChange('type', e.target.value)}
-              >
-                <MenuItem value="common">Comum</MenuItem>
-                <MenuItem value="time">Por Tempo</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              type="number"
-              label="XP"
-              value={formData.xp}
-              onChange={(e) => handleInputChange('xp', parseInt(e.target.value) || 0)}
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <Typography variant="body2" sx={{ mb: 1, color: textSecondary, fontWeight: 600 }}>
-              Habilidades (pode selecionar múltiplas):
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {[
-                { value: 'strength', label: 'Força' },
-                { value: 'vitality', label: 'Vitalidade' },
-                { value: 'agility', label: 'Agilidade' },
-                { value: 'intelligence', label: 'Inteligência' },
-                { value: 'persistence', label: 'Persistência' },
-              ].map((skill) => (
-                <Chip
-                  key={skill.value}
-                  label={skill.label}
-                  onClick={() => handleSkillChange(skill.value)}
-                  sx={{
-                    borderColor: formData.skills.includes(skill.value)
-                      ? primaryColor
-                      : `${primaryColor}4D`,
-                    color: formData.skills.includes(skill.value) ? textPrimary : textSecondary,
-                    opacity: formData.skills.includes(skill.value) ? 1 : 0.6,
-                    backgroundColor: formData.skills.includes(skill.value)
-                      ? `${primaryColor}33`
-                      : 'transparent',
-                    border: '1px solid',
-                    cursor: 'pointer',
-                    '&:hover': {
-                      borderColor: primaryColor,
-                      backgroundColor: `${primaryColor}1A`,
-                    },
-                  }}
-                  variant={formData.skills.includes(skill.value) ? 'filled' : 'outlined'}
-                />
-              ))}
-            </Box>
-          </Grid>
-          {formData.type === 'time' && (
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Duração (segundos)"
-                value={formData.duration}
-                onChange={(e) => handleInputChange('duration', parseInt(e.target.value) || 60)}
-              />
-            </Grid>
-          )}
-          <Grid item xs={12}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.active}
-                  onChange={(e) => handleInputChange('active', e.target.checked)}
-                />
-              }
-              label="Tarefa Ativa (aparecerá na lista de tarefas disponíveis)"
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button
-                variant="contained"
-                startIcon={editDialog.open ? <Edit /> : <Add />}
-                onClick={editDialog.open ? handleUpdate : handleSubmit}
-                fullWidth
-              >
-                {editDialog.open ? 'Atualizar Template' : 'Adicionar Template'}
-              </Button>
-            </motion.div>
-            {editDialog.open && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    setEditDialog({ open: false, task: null });
-                    resetForm();
-                  }}
-                  fullWidth
-                  sx={{ mt: 2 }}
-                >
-                  Cancelar
-                </Button>
-              </motion.div>
-            )}
-          </Grid>
-        </Grid>
-      </Paper>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <Typography
-          variant="h6"
-          gutterBottom
-          sx={{
-            mb: 2,
-            color: textPrimary,
-            textShadow: textShadow,
+      <Tabs
+        value={adminTab}
+        onChange={(e, newValue) => setAdminTab(newValue)}
+        sx={{
+          mb: 4,
+          '& .MuiTab-root': {
+            color: textSecondary,
+            opacity: 0.6,
             textTransform: 'uppercase',
-            letterSpacing: '2px',
-          }}
-        >
-          Templates de Tarefas ({tasks.length})
-        </Typography>
-      </motion.div>
+            fontWeight: 600,
+            transition: 'all 0.3s ease',
+            '&.Mui-selected': {
+              color: textPrimary,
+              opacity: 1,
+              textShadow: titleTextShadow,
+            },
+          },
+          '& .MuiTabs-indicator': {
+            backgroundColor: primaryColor,
+            boxShadow: `0 0 10px ${primaryColor}`,
+            transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+          },
+        }}
+      >
+        <Tab label="Controle de Níveis" />
+        <Tab label="Controle de Tarefas" />
+        <Tab label="Controle da Loja" />
+      </Tabs>
 
-      {tasks.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <Typography sx={{ color: textSecondary, opacity: 0.7, textAlign: 'center', py: 4 }}>
-            Nenhum template de tarefa cadastrado
-          </Typography>
-        </motion.div>
-      ) : (
+      {/* Aba: Controle de Níveis */}
+      {adminTab === 0 && (
         <Box>
-          {tasks.map((task, index) => (
-            <motion.div 
-              key={task.id} 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ 
-                duration: 0.4, 
-                delay: index * 0.05,
-                ease: [0.22, 1, 0.36, 1] 
-              }}
-              whileHover={{ scale: 1.02, y: -2 }}
-            >
-              <Paper
-                sx={{
-                  p: 2.5,
-                  mb: 2,
-                  backgroundColor: 'background.paper',
-                  border: `1px solid ${primaryColor}4D`,
-                  boxShadow: `0 0 20px ${primaryColor}1A`,
-                }}
-              >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="h6" sx={{ color: textPrimary, fontWeight: 600, mb: 1 }}>
-                  {task.title}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1.5, color: textSecondary, lineHeight: 1.6 }}>
-                  {task.description}
-                </Typography>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
-                  <Typography variant="body2" sx={{ color: textSecondary }}>
-                    Status:
-                  </Typography>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={task.active !== false}
-                        onChange={() => handleToggleActive(task.id)}
-                        sx={{
-                          '& .MuiSwitch-switchBase.Mui-checked': {
-                            color: theme.palette.secondary.main,
-                            '&:hover': {
-                              backgroundColor: `${theme.palette.secondary.main}1A`,
-                            },
-                          },
-                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: theme.palette.secondary.main,
-                          },
-                        }}
-                      />
-                    }
-                    label={
-                      <Typography variant="body2" sx={{ color: task.active !== false ? theme.palette.secondary.main : '#FF6B6B' }}>
-                        {task.active !== false ? 'Ativa' : 'Inativa'}
-                      </Typography>
-                    }
-                  />
-                </Box>
-
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip
-                    label={task.type === 'common' ? 'Comum' : 'Por Tempo'}
-                    size="small"
-                    sx={{
-                      backgroundColor: `${primaryColor}33`,
-                      color: textPrimary,
-                      border: `1px solid ${primaryColor}80`,
-                    }}
-                  />
-                  <Chip
-                    label={`${task.xp} XP`}
-                    size="small"
-                    sx={{
-                      backgroundColor: `${primaryColor}33`,
-                      color: textPrimary,
-                      border: `1px solid ${primaryColor}80`,
-                    }}
-                  />
-                  {(() => {
-                    // Compatibilidade: suporta tanto task.skills (array) quanto task.skill (string antiga)
-                    const skills = task.skills
-                      ? (Array.isArray(task.skills) ? task.skills : [task.skills])
-                      : (task.skill ? [task.skill] : []);
-
-                    return skills.map((skill) => (
-                      <Chip
-                        key={skill}
-                        label={skillNames[skill]}
-                        size="small"
-                        sx={{
-                          backgroundColor: `${primaryColor}1A`,
-                          color: textSecondary,
-                          border: `1px solid ${primaryColor}4D`,
-                        }}
-                      />
-                    ));
-                  })()}
-                </Box>
-              </Box>
-              <Box>
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <IconButton
-                    onClick={() => handleEdit(task)}
-                    sx={{
-                      color: primaryColor,
-                      '&:hover': {
-                        backgroundColor: `${primaryColor}1A`,
-                        boxShadow: `0 0 10px ${primaryColor}80`,
-                      },
-                    }}
-                  >
-                    <Edit />
-                  </IconButton>
-                </motion.div>
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <IconButton
-                    onClick={() => handleDelete(task.id)}
-                    sx={{
-                      color: '#FF0000',
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 0, 0, 0.1)',
-                        boxShadow: '0 0 10px rgba(255, 0, 0, 0.5)',
-                      },
-                    }}
-                  >
-                    <Delete />
-                  </IconButton>
-                </motion.div>
-              </Box>
-            </Box>
-          </Paper>
-            </motion.div>
-          ))}
-        </Box>
-      )}
-
       {playerData && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
         >
           <Paper
           sx={{
@@ -678,6 +458,22 @@ const Admin = () => {
                 onChange={(e) => handlePlayerLevelChange('xp', e.target.value)}
               />
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Ouro"
+                type="number"
+                value={playerData.gold || 0}
+                onChange={(e) => handleGoldChange(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& input': {
+                      color: '#FFD700',
+                    },
+                  },
+                }}
+              />
+            </Grid>
 
             {skillsList.map((skill) => (
               <Grid item xs={12} sm={6} md={4} key={skill.value}>
@@ -711,11 +507,12 @@ const Admin = () => {
       )}
 
       {/* Seção de Seleção de Tema */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      >
+      {playerData && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        >
         <Paper
           sx={{
             p: 3,
@@ -820,10 +617,1098 @@ const Admin = () => {
             ))}
           </Grid>
         </Paper>
+        </motion.div>
+      )}
+        </Box>
+      )}
+
+      {/* Aba: Controle de Tarefas */}
+      {adminTab === 1 && (
+        <Box>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Paper
+              sx={{
+                p: 3,
+                mb: 4,
+                backgroundColor: 'background.paper',
+                border: `2px solid ${primaryColor}80`,
+                boxShadow: `0 0 30px ${primaryColor}33`,
+              }}
+            >
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{
+                  mb: 3,
+                  color: textPrimary,
+                  textShadow: titleTextShadow,
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px',
+                }}
+              >
+                {editDialog.open ? 'Editar Template de Tarefa' : 'Adicionar Novo Template de Tarefa'}
+              </Typography>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Título"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    label="Descrição"
+                    value={formData.description}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Tipo</InputLabel>
+                    <Select
+                      value={formData.type}
+                      label="Tipo"
+                      onChange={(e) => handleInputChange('type', e.target.value)}
+                    >
+                      <MenuItem value="common">Comum</MenuItem>
+                      <MenuItem value="time">Por Tempo</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="XP"
+                    value={formData.xp}
+                    onChange={(e) => handleInputChange('xp', parseInt(e.target.value) || 0)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Ouro"
+                    value={formData.gold}
+                    onChange={(e) => handleInputChange('gold', parseInt(e.target.value) || 0)}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="body2" sx={{ mb: 1, color: textSecondary, fontWeight: 600 }}>
+                    Habilidades (pode selecionar múltiplas):
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {[
+                      { value: 'strength', label: 'Força' },
+                      { value: 'vitality', label: 'Vitalidade' },
+                      { value: 'agility', label: 'Agilidade' },
+                      { value: 'intelligence', label: 'Inteligência' },
+                      { value: 'persistence', label: 'Persistência' },
+                    ].map((skill) => (
+                      <Chip
+                        key={skill.value}
+                        label={skill.label}
+                        onClick={() => handleSkillChange(skill.value)}
+                        sx={{
+                          borderColor: formData.skills.includes(skill.value)
+                            ? primaryColor
+                            : `${primaryColor}4D`,
+                          color: formData.skills.includes(skill.value) ? textPrimary : textSecondary,
+                          opacity: formData.skills.includes(skill.value) ? 1 : 0.6,
+                          backgroundColor: formData.skills.includes(skill.value)
+                            ? `${primaryColor}33`
+                            : 'transparent',
+                          border: '1px solid',
+                          cursor: 'pointer',
+                          '&:hover': {
+                            borderColor: primaryColor,
+                            backgroundColor: `${primaryColor}1A`,
+                          },
+                        }}
+                        variant={formData.skills.includes(skill.value) ? 'filled' : 'outlined'}
+                      />
+                    ))}
+                  </Box>
+                </Grid>
+                {formData.type === 'time' && (
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Duração (segundos)"
+                      value={formData.duration}
+                      onChange={(e) => handleInputChange('duration', parseInt(e.target.value) || 60)}
+                    />
+                  </Grid>
+                )}
+                <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.active}
+                        onChange={(e) => handleInputChange('active', e.target.checked)}
+                      />
+                    }
+                    label="Tarefa Ativa (aparecerá na lista de tarefas disponíveis)"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button
+                      variant="contained"
+                      startIcon={editDialog.open ? <Edit /> : <Add />}
+                      onClick={editDialog.open ? handleUpdate : handleSubmit}
+                      fullWidth
+                    >
+                      {editDialog.open ? 'Atualizar Template' : 'Adicionar Template'}
+                    </Button>
+                  </motion.div>
+                  {editDialog.open && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setEditDialog({ open: false, task: null });
+                          resetForm();
+                        }}
+                        fullWidth
+                        sx={{ mt: 2 }}
+                      >
+                        Cancelar
+                      </Button>
+                    </motion.div>
+                  )}
+                </Grid>
+              </Grid>
+            </Paper>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Typography
+              variant="h6"
+              gutterBottom
+              sx={{
+                mb: 2,
+                color: textPrimary,
+                textShadow: textShadow,
+                textTransform: 'uppercase',
+                letterSpacing: '2px',
+              }}
+            >
+              Templates de Tarefas ({tasks.length})
+            </Typography>
+          </motion.div>
+
+          {tasks.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <Typography sx={{ color: textSecondary, opacity: 0.7, textAlign: 'center', py: 4 }}>
+                Nenhum template de tarefa cadastrado
+              </Typography>
+            </motion.div>
+          ) : (
+            <Box>
+              {tasks.map((task, index) => (
+                <motion.div 
+                  key={task.id} 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ 
+                    duration: 0.4, 
+                    delay: index * 0.05,
+                    ease: [0.22, 1, 0.36, 1] 
+                  }}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                >
+                  <Paper
+                    sx={{
+                      p: 2.5,
+                      mb: 2,
+                      backgroundColor: 'background.paper',
+                      border: `1px solid ${primaryColor}4D`,
+                      boxShadow: `0 0 20px ${primaryColor}1A`,
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" sx={{ color: textPrimary, fontWeight: 600, mb: 1 }}>
+                          {task.title}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1.5, color: textSecondary, lineHeight: 1.6 }}>
+                          {task.description}
+                        </Typography>
+
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+                          <Typography variant="body2" sx={{ color: textSecondary }}>
+                            Status:
+                          </Typography>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={task.active !== false}
+                                onChange={() => handleToggleActive(task.id)}
+                                sx={{
+                                  '& .MuiSwitch-switchBase.Mui-checked': {
+                                    color: theme.palette.secondary.main,
+                                    '&:hover': {
+                                      backgroundColor: `${theme.palette.secondary.main}1A`,
+                                    },
+                                  },
+                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                    backgroundColor: theme.palette.secondary.main,
+                                  },
+                                }}
+                              />
+                            }
+                            label={
+                              <Typography variant="body2" sx={{ color: task.active !== false ? theme.palette.secondary.main : '#FF6B6B' }}>
+                                {task.active !== false ? 'Ativa' : 'Inativa'}
+                              </Typography>
+                            }
+                          />
+                        </Box>
+
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          <Chip
+                            label={task.type === 'common' ? 'Comum' : 'Por Tempo'}
+                            size="small"
+                            sx={{
+                              backgroundColor: `${primaryColor}33`,
+                              color: textPrimary,
+                              border: `1px solid ${primaryColor}80`,
+                            }}
+                          />
+                          <Chip
+                            label={`${task.xp} XP`}
+                            size="small"
+                            sx={{
+                              backgroundColor: `${primaryColor}33`,
+                              color: textPrimary,
+                              border: `1px solid ${primaryColor}80`,
+                            }}
+                          />
+                          {task.gold > 0 && (
+                            <Chip
+                              label={`${task.gold} 🪙`}
+                              size="small"
+                              sx={{
+                                backgroundColor: '#FFD70033',
+                                color: '#FFD700',
+                                border: '1px solid #FFD70080',
+                              }}
+                            />
+                          )}
+                          {(() => {
+                            const skills = task.skills
+                              ? (Array.isArray(task.skills) ? task.skills : [task.skills])
+                              : (task.skill ? [task.skill] : []);
+
+                            return skills.map((skill) => (
+                              <Chip
+                                key={skill}
+                                label={skillNames[skill]}
+                                size="small"
+                                sx={{
+                                  backgroundColor: `${primaryColor}1A`,
+                                  color: textSecondary,
+                                  border: `1px solid ${primaryColor}4D`,
+                                }}
+                              />
+                            ));
+                          })()}
+                        </Box>
+                      </Box>
+                      <Box>
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <IconButton
+                            onClick={() => handleEdit(task)}
+                            sx={{
+                              color: primaryColor,
+                              '&:hover': {
+                                backgroundColor: `${primaryColor}1A`,
+                                boxShadow: `0 0 10px ${primaryColor}80`,
+                              },
+                            }}
+                          >
+                            <Edit />
+                          </IconButton>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <IconButton
+                            onClick={() => handleDelete(task.id)}
+                            sx={{
+                              color: '#FF0000',
+                              '&:hover': {
+                                backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                                boxShadow: '0 0 10px rgba(255, 0, 0, 0.5)',
+                              },
+                            }}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </motion.div>
+                      </Box>
+                    </Box>
+                  </Paper>
+                </motion.div>
+              ))}
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* Aba: Controle da Loja */}
+      {adminTab === 2 && (
+        <Box>
+      {/* Seção de Gerenciamento de Loja */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Paper
+          sx={{
+            p: 3,
+            mb: 4,
+            backgroundColor: 'background.paper',
+            border: `2px solid ${primaryColor}80`,
+            boxShadow: `0 0 30px ${primaryColor}33`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <ShoppingCart sx={{ color: primaryColor, fontSize: 32 }} />
+            <Typography
+              variant="h6"
+              sx={{
+                color: textPrimary,
+                textShadow: titleTextShadow,
+                textTransform: 'uppercase',
+                letterSpacing: '2px',
+                fontWeight: 600,
+              }}
+            >
+              GERENCIAR LOJA
+            </Typography>
+          </Box>
+
+          {/* Gerenciar Categorias */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2, color: textPrimary, textShadow: textShadow }}>
+              Categorias
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <TextField
+                label="Nome da Categoria"
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm({ name: e.target.value })}
+                sx={{ flex: 1 }}
+              />
+              <Button
+                variant="outlined"
+                startIcon={<Add />}
+                onClick={() => {
+                  if (categoryForm.name.trim()) {
+                    const newCategory = {
+                      id: `cat_${Date.now()}`,
+                      name: categoryForm.name.trim(),
+                      order: shopCategories.length,
+                    };
+                    const updated = [...shopCategories, newCategory];
+                    saveShopCategories(updated);
+                    setShopCategories(updated);
+                    setCategoryForm({ name: '' });
+                  }
+                }}
+              >
+                Adicionar
+              </Button>
+            </Box>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(event) => {
+                const { active, over } = event;
+                if (active.id !== over?.id) {
+                  const oldIndex = shopCategories.findIndex(c => c.id === active.id);
+                  const newIndex = shopCategories.findIndex(c => c.id === over.id);
+                  const reordered = arrayMove(shopCategories, oldIndex, newIndex);
+                  reordered.forEach((cat, idx) => {
+                    cat.order = idx;
+                  });
+                  saveShopCategories(reordered);
+                  setShopCategories(reordered);
+                }
+              }}
+            >
+              <SortableContext items={shopCategories.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                {shopCategories.map((category) => (
+                  <CategoryItem
+                    key={category.id}
+                    category={category}
+                    onDelete={(id) => {
+                      const updated = shopCategories.filter(c => c.id !== id);
+                      saveShopCategories(updated);
+                      setShopCategories(updated);
+                      // Mover itens da categoria deletada para 'default'
+                      const updatedItems = shopItems.map(item =>
+                        item.category === id ? { ...item, category: 'default' } : item
+                      );
+                      saveShopItems(updatedItems);
+                      setShopItems(updatedItems);
+                    }}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          </Box>
+
+          {/* Formulário de Item */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2, color: textPrimary, textShadow: textShadow }}>
+              {shopItemEditDialog.open ? 'Editar Item' : 'Adicionar Item'}
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Título"
+                  value={shopItemForm.title}
+                  onChange={(e) => setShopItemForm({ ...shopItemForm, title: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Descrição"
+                  value={shopItemForm.description}
+                  onChange={(e) => setShopItemForm({ ...shopItemForm, description: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="URL da Imagem"
+                  value={shopItemForm.imageUrl}
+                  onChange={(e) => setShopItemForm({ ...shopItemForm, imageUrl: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Categoria</InputLabel>
+                  <Select
+                    value={shopItemForm.category}
+                    label="Categoria"
+                    onChange={(e) => setShopItemForm({ ...shopItemForm, category: e.target.value })}
+                  >
+                    {shopCategories.map((cat) => (
+                      <MenuItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="body2" sx={{ mb: 2, color: textSecondary, fontWeight: 600 }}>
+                  Condições de Compra (pode selecionar múltiplas):
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={shopItemForm.requiresGold}
+                        onChange={(e) => setShopItemForm({ ...shopItemForm, requiresGold: e.target.checked })}
+                      />
+                    }
+                    label="Requer Ouro"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={shopItemForm.requiresLevel}
+                        onChange={(e) => setShopItemForm({ ...shopItemForm, requiresLevel: e.target.checked })}
+                      />
+                    }
+                    label="Requer Nível"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={shopItemForm.requiresTasks}
+                        onChange={(e) => setShopItemForm({ ...shopItemForm, requiresTasks: e.target.checked })}
+                      />
+                    }
+                    label="Requer Tarefas"
+                  />
+                </Box>
+              </Grid>
+              {shopItemForm.requiresGold ? (
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Preço (Ouro)"
+                    value={shopItemForm.price}
+                    onChange={(e) => setShopItemForm({ ...shopItemForm, price: parseInt(e.target.value) || 0 })}
+                  />
+                </Grid>
+              ) : null}
+              {shopItemForm.requiresLevel ? (
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Nível Necessário"
+                    value={shopItemForm.requiredLevel}
+                    onChange={(e) => setShopItemForm({ ...shopItemForm, requiredLevel: parseInt(e.target.value) || 0 })}
+                  />
+                </Grid>
+              ) : null}
+              {shopItemForm.requiresTasks ? (
+                <Grid item xs={12}>
+                  <Typography variant="body2" sx={{ mb: 2, color: textSecondary, fontWeight: 600 }}>
+                    Tarefas Necessárias (selecione uma ou mais):
+                  </Typography>
+                  <Paper
+                    sx={{
+                      p: 2,
+                      maxHeight: 300,
+                      overflow: 'auto',
+                      backgroundColor: `${primaryColor}0D`,
+                      border: `1px solid ${primaryColor}4D`,
+                    }}
+                  >
+                    {tasks.length === 0 ? (
+                      <Typography sx={{ color: textSecondary, opacity: 0.7, textAlign: 'center', py: 2 }}>
+                        Nenhuma tarefa disponível
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {tasks
+                          .filter(task => task.active !== false)
+                          .map((task) => {
+                            const taskId = task.id.toString();
+                            const isSelected = shopItemForm.requiredTasks.includes(taskId);
+                            
+                            return (
+                              <motion.div
+                                key={task.id}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                              >
+                                <Paper
+                                  sx={{
+                                    p: 1.5,
+                                    cursor: 'pointer',
+                                    border: isSelected ? `2px solid ${primaryColor}` : `1px solid ${primaryColor}4D`,
+                                    backgroundColor: isSelected ? `${primaryColor}1A` : 'background.paper',
+                                    '&:hover': {
+                                      backgroundColor: `${primaryColor}0D`,
+                                      borderColor: primaryColor,
+                                    },
+                                  }}
+                                  onClick={() => {
+                                    const currentTasks = shopItemForm.requiredTasks || [];
+                                    if (isSelected) {
+                                      setShopItemForm({
+                                        ...shopItemForm,
+                                        requiredTasks: currentTasks.filter(id => id !== taskId),
+                                      });
+                                    } else {
+                                      setShopItemForm({
+                                        ...shopItemForm,
+                                        requiredTasks: [...currentTasks, taskId],
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onChange={() => {}}
+                                      sx={{
+                                        color: primaryColor,
+                                        '&.Mui-checked': {
+                                          color: primaryColor,
+                                        },
+                                      }}
+                                    />
+                                    <Box sx={{ flex: 1 }}>
+                                      <Typography variant="body2" sx={{ color: textPrimary, fontWeight: 600 }}>
+                                        {task.title}
+                                      </Typography>
+                                      <Typography variant="caption" sx={{ color: textSecondary, fontSize: '0.75rem' }}>
+                                        {task.description}
+                                      </Typography>
+                                      <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+                                        <Chip
+                                          label={`${task.xp} XP`}
+                                          size="small"
+                                          sx={{
+                                            height: 20,
+                                            fontSize: '0.65rem',
+                                            backgroundColor: `${primaryColor}33`,
+                                            color: textPrimary,
+                                          }}
+                                        />
+                                        {task.gold > 0 && (
+                                          <Chip
+                                            label={`${task.gold} 🪙`}
+                                            size="small"
+                                            sx={{
+                                              height: 20,
+                                              fontSize: '0.65rem',
+                                              backgroundColor: '#FFD70033',
+                                              color: '#FFD700',
+                                            }}
+                                          />
+                                        )}
+                                      </Box>
+                                    </Box>
+                                  </Box>
+                                </Paper>
+                              </motion.div>
+                            );
+                          })}
+                      </Box>
+                    )}
+                  </Paper>
+                  {shopItemForm.requiredTasks.length > 0 && (
+                    <Typography variant="caption" sx={{ color: textSecondary, mt: 1, display: 'block' }}>
+                      {shopItemForm.requiredTasks.length} tarefa(s) selecionada(s)
+                    </Typography>
+                  )}
+                </Grid>
+              ) : null}
+              <Grid item xs={12}>
+                <Button
+                  variant="contained"
+                  startIcon={shopItemEditDialog.open ? <Edit /> : <Add />}
+                  onClick={() => {
+                    if (!shopItemForm.title || !shopItemForm.description) {
+                      alert('Preencha título e descrição');
+                      return;
+                    }
+                    if (shopItemEditDialog.open) {
+                      const updated = shopItems.map(item =>
+                        item.id === shopItemEditDialog.item.id ? { ...shopItemEditDialog.item, ...shopItemForm } : item
+                      );
+                      saveShopItems(updated);
+                      setShopItems(updated);
+                      setShopItemEditDialog({ open: false, item: null });
+                    } else {
+                      const newItem = {
+                        id: Date.now(),
+                        ...shopItemForm,
+                        order: shopItems.filter(i => i.category === shopItemForm.category).length,
+                      };
+                      const updated = [...shopItems, newItem];
+                      saveShopItems(updated);
+                      setShopItems(updated);
+                    }
+                    setShopItemForm({
+                      title: '',
+                      description: '',
+                      imageUrl: '',
+                      category: shopCategories[0]?.id || 'default',
+                      price: 0,
+                      requiredLevel: 0,
+                      requiredTasks: [],
+                      requiresGold: true,
+                      requiresLevel: false,
+                      requiresTasks: false,
+                    });
+                  }}
+                  fullWidth
+                >
+                  {shopItemEditDialog.open ? 'Atualizar Item' : 'Adicionar Item'}
+                </Button>
+                {shopItemEditDialog.open && (
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      setShopItemEditDialog({ open: false, item: null });
+                      setShopItemForm({
+                        title: '',
+                        description: '',
+                        imageUrl: '',
+                        category: shopCategories[0]?.id || 'default',
+                        price: 0,
+                        requiredLevel: 0,
+                        requiredTasks: [],
+                        purchaseType: 'gold',
+                      });
+                    }}
+                    fullWidth
+                    sx={{ mt: 2 }}
+                  >
+                    Cancelar
+                  </Button>
+                )}
+              </Grid>
+            </Grid>
+          </Box>
+
+          {/* Lista de Itens */}
+          <Box>
+            <Typography variant="h6" sx={{ mb: 2, color: textPrimary, textShadow: textShadow }}>
+              Itens da Loja ({shopItems.length})
+            </Typography>
+            {shopItems.length === 0 ? (
+              <Typography sx={{ color: textSecondary, opacity: 0.7, textAlign: 'center', py: 4 }}>
+                Nenhum item cadastrado
+              </Typography>
+            ) : (
+              <Box>
+                {shopCategories.map((category) => {
+                  const categoryItems = shopItems
+                    .filter(item => item.category === category.id)
+                    .sort((a, b) => (a.order || 0) - (b.order || 0));
+                  
+                  if (categoryItems.length === 0) return null;
+
+                  return (
+                    <Box key={category.id} sx={{ mb: 3 }}>
+                      <Typography variant="subtitle1" sx={{ mb: 2, color: textPrimary, fontWeight: 600 }}>
+                        {category.name}
+                      </Typography>
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={(event) => {
+                          const { active, over } = event;
+                          if (active.id !== over?.id) {
+                            const activeItem = shopItems.find(i => i.id === active.id);
+                            const overItem = shopItems.find(i => i.id === over.id);
+                            if (activeItem && overItem && activeItem.category === overItem.category) {
+                              const categoryItems = shopItems
+                                .filter(i => i.category === activeItem.category)
+                                .sort((a, b) => (a.order || 0) - (b.order || 0));
+                              const oldIndex = categoryItems.findIndex(i => i.id === active.id);
+                              const newIndex = categoryItems.findIndex(i => i.id === over.id);
+                              const reordered = arrayMove(categoryItems, oldIndex, newIndex);
+                              reordered.forEach((item, idx) => {
+                                item.order = idx;
+                              });
+                              const updated = shopItems.map(item => {
+                                const reorderedItem = reordered.find(r => r.id === item.id);
+                                return reorderedItem || item;
+                              });
+                              saveShopItems(updated);
+                              setShopItems(updated);
+                            }
+                          }
+                        }}
+                      >
+                        <SortableContext items={categoryItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                          {categoryItems.map((item) => (
+                            <ShopItemCard
+                              key={item.id}
+                              item={item}
+                              tasks={tasks}
+                              onEdit={(item) => {
+                                // Compatibilidade: converter purchaseType antigo para novas flags
+                                let requiresGold = item.requiresGold !== undefined ? item.requiresGold : true;
+                                let requiresLevel = item.requiresLevel !== undefined ? item.requiresLevel : false;
+                                let requiresTasks = item.requiresTasks !== undefined ? item.requiresTasks : false;
+                                
+                                // Se tiver purchaseType antigo, converter
+                                if (item.purchaseType) {
+                                  requiresGold = item.purchaseType === 'gold' || item.purchaseType === 'mixed';
+                                  requiresLevel = item.purchaseType === 'level' || item.purchaseType === 'mixed';
+                                  requiresTasks = item.purchaseType === 'tasks' || item.purchaseType === 'mixed';
+                                }
+                                
+                                setShopItemForm({
+                                  title: item.title,
+                                  description: item.description,
+                                  imageUrl: item.imageUrl || '',
+                                  category: item.category,
+                                  price: item.price || 0,
+                                  requiredLevel: item.requiredLevel || 0,
+                                  requiredTasks: item.requiredTasks || [],
+                                  requiresGold,
+                                  requiresLevel,
+                                  requiresTasks,
+                                });
+                                setShopItemEditDialog({ open: true, item });
+                              }}
+                              onDelete={(id) => {
+                                if (window.confirm('Tem certeza que deseja deletar este item?')) {
+                                  const updated = shopItems.filter(i => i.id !== id);
+                                  saveShopItems(updated);
+                                  setShopItems(updated);
+                                }
+                              }}
+                            />
+                          ))}
+                        </SortableContext>
+                      </DndContext>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </Box>
+        </Paper>
       </motion.div>
+
+        </Box>
+      )}
 
     </Box>
     
+  );
+};
+
+// Componente para item de categoria arrastável
+const CategoryItem = ({ category, onDelete }) => {
+  const theme = useTheme();
+  const primaryColor = theme.palette.primary.main;
+  const textPrimary = theme.palette.text.primary;
+  const textSecondary = theme.palette.text.secondary;
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: category.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <Paper
+      ref={setNodeRef}
+      style={style}
+      sx={{
+        p: 2,
+        mb: 1,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        backgroundColor: 'background.paper',
+        border: `1px solid ${primaryColor}4D`,
+      }}
+    >
+      <Box {...attributes} {...listeners} sx={{ cursor: 'grab', color: textSecondary }}>
+        <DragIndicator />
+      </Box>
+      <Category sx={{ color: primaryColor }} />
+      <Typography sx={{ flex: 1, color: textPrimary }}>{category.name}</Typography>
+      <IconButton
+        onClick={() => onDelete(category.id)}
+        sx={{
+          color: '#FF0000',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 0, 0, 0.1)',
+          },
+        }}
+      >
+        <Delete />
+      </IconButton>
+    </Paper>
+  );
+};
+
+// Componente para card de item da loja arrastável
+const ShopItemCard = ({ item, onEdit, onDelete, tasks = [] }) => {
+  const theme = useTheme();
+  const primaryColor = theme.palette.primary.main;
+  const textPrimary = theme.palette.text.primary;
+  const textSecondary = theme.palette.text.secondary;
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <Paper
+      ref={setNodeRef}
+      style={style}
+      component={motion.div}
+      whileHover={{ scale: 1.02, y: -2 }}
+      sx={{
+        p: 2.5,
+        mb: 2,
+        backgroundColor: 'background.paper',
+        border: `1px solid ${primaryColor}4D`,
+        boxShadow: `0 0 20px ${primaryColor}1A`,
+      }}
+    >
+      <Box sx={{ display: 'flex', gap: 2 }}>
+        {item.imageUrl && (
+          <Box
+            component="img"
+            src={item.imageUrl}
+            alt={item.title}
+            sx={{
+              width: 80,
+              height: 80,
+              objectFit: 'cover',
+              borderRadius: 1,
+              border: `1px solid ${primaryColor}4D`,
+            }}
+          />
+        )}
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="h6" sx={{ color: textPrimary, fontWeight: 600, mb: 1 }}>
+            {item.title}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1.5, color: textSecondary, lineHeight: 1.6 }}>
+            {item.description}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {(() => {
+              // Compatibilidade: converter purchaseType antigo para novas flags
+              const requiresGold = item.requiresGold !== undefined 
+                ? item.requiresGold 
+                : (item.purchaseType === 'gold' || item.purchaseType === 'mixed');
+              const requiresLevel = item.requiresLevel !== undefined 
+                ? item.requiresLevel 
+                : (item.purchaseType === 'level' || item.purchaseType === 'mixed');
+              const requiresTasks = item.requiresTasks !== undefined 
+                ? item.requiresTasks 
+                : (item.purchaseType === 'tasks' || item.purchaseType === 'mixed');
+              
+              return (
+                <>
+                  {requiresGold && (item.price || 0) > 0 ? (
+                    <Chip
+                      label={`${item.price} 🪙`}
+                      size="small"
+                      sx={{
+                        backgroundColor: '#FFD70033',
+                        color: '#FFD700',
+                        border: '1px solid #FFD70080',
+                      }}
+                    />
+                  ) : null}
+                  {requiresLevel && (item.requiredLevel || 0) > 0 ? (
+                    <Chip
+                      label={`Nível ${item.requiredLevel || 0}`}
+                      size="small"
+                      sx={{
+                        backgroundColor: `${primaryColor}33`,
+                        color: textPrimary,
+                        border: `1px solid ${primaryColor}80`,
+                      }}
+                    />
+                  ) : null}
+                  {requiresTasks && (item.requiredTasks?.length || 0) > 0 ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Chip
+                        label={`${item.requiredTasks?.length || 0} Tarefa(s)`}
+                        size="small"
+                        sx={{
+                          backgroundColor: `${primaryColor}1A`,
+                          color: textSecondary,
+                          border: `1px solid ${primaryColor}4D`,
+                        }}
+                      />
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {item.requiredTasks?.map((taskId) => {
+                          const task = tasks.find(t => t.id.toString() === taskId.toString());
+                          if (!task) return null;
+                          return (
+                            <Chip
+                              key={taskId}
+                              label={task.title}
+                              size="small"
+                              sx={{
+                                height: 20,
+                                fontSize: '0.65rem',
+                                backgroundColor: `${primaryColor}0D`,
+                                color: textSecondary,
+                                border: `1px solid ${primaryColor}2D`,
+                              }}
+                            />
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  ) : null}
+                </>
+              );
+            })()}
+          </Box>
+        </Box>
+        <Box>
+          <Box {...attributes} {...listeners} sx={{ cursor: 'grab', color: textSecondary, mb: 1 }}>
+            <DragIndicator />
+          </Box>
+          <IconButton
+            onClick={() => onEdit(item)}
+            sx={{
+              color: primaryColor,
+              '&:hover': {
+                backgroundColor: `${primaryColor}1A`,
+              },
+            }}
+          >
+            <Edit />
+          </IconButton>
+          <IconButton
+            onClick={() => onDelete(item.id)}
+            sx={{
+              color: '#FF0000',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 0, 0, 0.1)',
+              },
+            }}
+          >
+            <Delete />
+          </IconButton>
+        </Box>
+      </Box>
+    </Paper>
   );
 };
 
