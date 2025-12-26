@@ -38,35 +38,9 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { getTasks, saveTasks, getProgressiveTasks, saveProgressiveTasks, getTimeTasks, saveTimeTasks } from '../utils/storage';
+import { getTasks, saveTasks, getProgressiveTasks, saveProgressiveTasks, getTimeTasks, saveTimeTasks, getCompletedTasks, saveCompletedTasks, addCompletedTask, removeCompletedTask } from '../utils/storage';
 import { useSound } from '../hooks/useSound';
 
-// Chaves para localStorage
-const COMPLETED_TASKS_KEY = 'leveling_completed_tasks';
-
-// Funções auxiliares para gerenciar tarefas concluídas
-const getCompletedTasks = () => {
-  const data = localStorage.getItem(COMPLETED_TASKS_KEY);
-  return data ? JSON.parse(data) : [];
-};
-
-const saveCompletedTasks = (completedTasks) => {
-  localStorage.setItem(COMPLETED_TASKS_KEY, JSON.stringify(completedTasks));
-};
-
-const addCompletedTask = (taskId) => {
-  const completedTasks = getCompletedTasks();
-  if (!completedTasks.includes(taskId)) {
-    completedTasks.push(taskId);
-    saveCompletedTasks(completedTasks);
-  }
-};
-
-const removeCompletedTask = (taskId) => {
-  const completedTasks = getCompletedTasks();
-  const filtered = completedTasks.filter(id => id !== taskId);
-  saveCompletedTasks(filtered);
-};
 import { addXP } from '../utils/levelSystem';
 import { saveNotification, addGold } from '../utils/storage';
 

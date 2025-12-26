@@ -23,7 +23,7 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
-import { Add, Delete, Edit, Palette, ShoppingCart, Category, DragIndicator, ArrowUpward, ArrowDownward, CloudUpload, CloudDownload, Storage, CheckCircle, Error as ErrorIcon } from '@mui/icons-material';
+import { Add, Delete, Edit, Palette, ShoppingCart, Category, DragIndicator, ArrowUpward, ArrowDownward, CloudUpload, CloudDownload, Storage, CheckCircle, Error as ErrorIcon, EmojiEvents, GetApp, PhoneAndroid, Computer } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { 
   getTasks, 
@@ -38,6 +38,10 @@ import {
   saveShopCategories,
   setGold,
   getPurchasedItems,
+  getTitles,
+  saveTitles,
+  getCompletedTasks,
+  removeCompletedTask,
 } from '../utils/storage';
 import {
   getSupabaseConfig,
@@ -71,24 +75,6 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-// Funções auxiliares para gerenciar tarefas concluídas
-const COMPLETED_TASKS_KEY = 'leveling_completed_tasks';
-
-const getCompletedTasks = () => {
-  const data = localStorage.getItem(COMPLETED_TASKS_KEY);
-  return data ? JSON.parse(data) : [];
-};
-
-const saveCompletedTasks = (completedTasks) => {
-  localStorage.setItem(COMPLETED_TASKS_KEY, JSON.stringify(completedTasks));
-};
-
-const removeCompletedTask = (taskId) => {
-  const completedTasks = getCompletedTasks();
-  const filtered = completedTasks.filter(id => id !== taskId);
-  saveCompletedTasks(filtered);
-};
 
 const Admin = () => {
   const theme = useTheme();
@@ -149,6 +135,20 @@ const Admin = () => {
   const [syncStatus, setSyncStatus] = useState(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState({ type: '', text: '' });
+  const [titles, setTitles] = useState([]);
+  const [titleForm, setTitleForm] = useState({
+    name: '',
+    description: '',
+    requiresLevel: false,
+    requiredLevel: 0,
+    requiresGold: false,
+    requiredGold: 0,
+    requiresTasks: false,
+    requiredTasks: [],
+  });
+  const [titleEditDialog, setTitleEditDialog] = useState({ open: false, title: null });
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   // Sensores para drag and drop
   const sensors = useSensors(
@@ -191,6 +191,7 @@ const Admin = () => {
     loadPlayerData();
     loadShopItems();
     loadShopCategories();
+    loadTitles();
     if (supabaseConfig) {
       setSupabaseForm({
         url: supabaseConfig.url || '',
@@ -199,7 +200,45 @@ const Admin = () => {
       });
     }
     checkForSyncConflict();
+    
+    // Verificar se o app já está instalado
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+    }
+    
+    // Capturar o evento beforeinstallprompt
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    
+    // Verificar se foi instalado após o prompt
+    window.addEventListener('appinstalled', () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    });
+    
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
+  
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) {
+      return;
+    }
+    
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      setIsInstalled(true);
+    }
+    
+    setDeferredPrompt(null);
+  };
 
   const checkForSyncConflict = async () => {
     if (!supabaseConfig || !supabaseConfig.userId) return;
@@ -308,6 +347,11 @@ const Admin = () => {
     setShopCategories(categories);
   };
 
+  const loadTitles = () => {
+    const titlesData = getTitles();
+    setTitles(titlesData);
+  };
+
   const handleInputChange = (field, value) => {
     setFormData({ ...formData, [field]: value });
   };
@@ -386,6 +430,32 @@ const Admin = () => {
       const updatedTasks = tasks.filter((t) => t.id !== taskId);
       saveTasks(updatedTasks);
       setTasks(updatedTasks);
+      
+      // Remover tarefa excluída dos requisitos de itens da loja
+      const updatedShopItems = shopItems.map(item => {
+        if (item.requiredTasks && item.requiredTasks.includes(taskId.toString())) {
+          return {
+            ...item,
+            requiredTasks: item.requiredTasks.filter(id => id !== taskId.toString()),
+          };
+        }
+        return item;
+      });
+      saveShopItems(updatedShopItems);
+      setShopItems(updatedShopItems);
+      
+      // Remover tarefa excluída dos requisitos de títulos
+      const updatedTitles = titles.map(title => {
+        if (title.requiredTasks && title.requiredTasks.includes(taskId.toString())) {
+          return {
+            ...title,
+            requiredTasks: title.requiredTasks.filter(id => id !== taskId.toString()),
+          };
+        }
+        return title;
+      });
+      saveTitles(updatedTitles);
+      setTitles(updatedTitles);
     }
   };
 
@@ -571,6 +641,7 @@ const Admin = () => {
         <Tab label="Controle de Níveis" />
         <Tab label="Controle de Tarefas" />
         <Tab label="Controle da Loja" />
+        <Tab label="Títulos" />
         <Tab label="Sincronização" />
       </Tabs>
 
@@ -1804,8 +1875,453 @@ const Admin = () => {
         </Box>
       )}
 
-      {/* Aba: Sincronização */}
+      {/* Aba: Títulos */}
       {adminTab === 3 && (
+        <Box>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Paper
+              sx={{
+                p: 3,
+                mb: 4,
+                backgroundColor: 'background.paper',
+                border: `2px solid ${primaryColor}80`,
+                boxShadow: `0 0 30px ${primaryColor}33`,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                <EmojiEvents sx={{ color: primaryColor, fontSize: 32 }} />
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: textPrimary,
+                    textShadow: titleTextShadow,
+                    textTransform: 'uppercase',
+                    letterSpacing: '2px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {titleEditDialog.open ? 'Editar Título' : 'Adicionar Novo Título'}
+                </Typography>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Nome do Título"
+                    value={titleForm.name}
+                    onChange={(e) => setTitleForm({ ...titleForm, name: e.target.value })}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    label="Descrição"
+                    value={titleForm.description}
+                    onChange={(e) => setTitleForm({ ...titleForm, description: e.target.value })}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="body2" sx={{ mb: 2, color: textSecondary, fontWeight: 600 }}>
+                    Condições para Ganhar (pode selecionar múltiplas):
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={titleForm.requiresLevel}
+                          onChange={(e) => setTitleForm({ ...titleForm, requiresLevel: e.target.checked })}
+                        />
+                      }
+                      label="Requer Nível"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={titleForm.requiresGold}
+                          onChange={(e) => setTitleForm({ ...titleForm, requiresGold: e.target.checked })}
+                        />
+                      }
+                      label="Requer Ouro"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={titleForm.requiresTasks}
+                          onChange={(e) => setTitleForm({ ...titleForm, requiresTasks: e.target.checked })}
+                        />
+                      }
+                      label="Requer Tarefas"
+                    />
+                  </Box>
+                </Grid>
+                {titleForm.requiresLevel && (
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Nível Necessário"
+                      value={titleForm.requiredLevel}
+                      onChange={(e) => setTitleForm({ ...titleForm, requiredLevel: parseInt(e.target.value) || 0 })}
+                    />
+                  </Grid>
+                )}
+                {titleForm.requiresGold && (
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Ouro Necessário"
+                      value={titleForm.requiredGold}
+                      onChange={(e) => setTitleForm({ ...titleForm, requiredGold: parseInt(e.target.value) || 0 })}
+                    />
+                  </Grid>
+                )}
+                {titleForm.requiresTasks && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2" sx={{ mb: 2, color: textSecondary, fontWeight: 600 }}>
+                      Tarefas Necessárias (selecione uma ou mais):
+                    </Typography>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        maxHeight: 300,
+                        overflow: 'auto',
+                        backgroundColor: `${primaryColor}0D`,
+                        border: `1px solid ${primaryColor}4D`,
+                      }}
+                    >
+                      {tasks.length === 0 ? (
+                        <Typography sx={{ color: textSecondary, opacity: 0.7, textAlign: 'center', py: 2 }}>
+                          Nenhuma tarefa disponível
+                        </Typography>
+                      ) : (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          {tasks
+                            .filter(task => task.active !== false)
+                            .map((task) => {
+                              const taskId = task.id.toString();
+                              const isSelected = titleForm.requiredTasks.includes(taskId);
+                              
+                              return (
+                                <motion.div
+                                  key={task.id}
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <Paper
+                                    sx={{
+                                      p: 1.5,
+                                      cursor: 'pointer',
+                                      border: isSelected ? `2px solid ${primaryColor}` : `1px solid ${primaryColor}4D`,
+                                      backgroundColor: isSelected ? `${primaryColor}1A` : 'background.paper',
+                                      '&:hover': {
+                                        backgroundColor: `${primaryColor}0D`,
+                                        borderColor: primaryColor,
+                                      },
+                                    }}
+                                    onClick={() => {
+                                      const currentTasks = titleForm.requiredTasks || [];
+                                      if (isSelected) {
+                                        setTitleForm({
+                                          ...titleForm,
+                                          requiredTasks: currentTasks.filter(id => id !== taskId),
+                                        });
+                                      } else {
+                                        setTitleForm({
+                                          ...titleForm,
+                                          requiredTasks: [...currentTasks, taskId],
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onChange={() => {}}
+                                        sx={{
+                                          color: primaryColor,
+                                          '&.Mui-checked': {
+                                            color: primaryColor,
+                                          },
+                                        }}
+                                      />
+                                      <Box sx={{ flex: 1 }}>
+                                        <Typography variant="body2" sx={{ color: textPrimary, fontWeight: 600 }}>
+                                          {task.title}
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ color: textSecondary, fontSize: '0.75rem' }}>
+                                          {task.description}
+                                        </Typography>
+                                      </Box>
+                                    </Box>
+                                  </Paper>
+                                </motion.div>
+                              );
+                            })}
+                        </Box>
+                      )}
+                    </Paper>
+                    {titleForm.requiredTasks.length > 0 && (
+                      <Typography variant="caption" sx={{ color: textSecondary, mt: 1, display: 'block' }}>
+                        {titleForm.requiredTasks.length} tarefa(s) selecionada(s)
+                      </Typography>
+                    )}
+                  </Grid>
+                )}
+                <Grid item xs={12}>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button
+                      variant="contained"
+                      startIcon={titleEditDialog.open ? <Edit /> : <Add />}
+                      onClick={() => {
+                        if (!titleForm.name) {
+                          alert('Preencha o nome do título');
+                          return;
+                        }
+                        if (titleEditDialog.open) {
+                          const updated = titles.map(t =>
+                            t.id === titleEditDialog.title.id ? { ...titleEditDialog.title, ...titleForm } : t
+                          );
+                          saveTitles(updated);
+                          setTitles(updated);
+                          setTitleEditDialog({ open: false, title: null });
+                        } else {
+                          const newTitle = {
+                            id: Date.now(),
+                            ...titleForm,
+                          };
+                          const updated = [...titles, newTitle];
+                          saveTitles(updated);
+                          setTitles(updated);
+                        }
+                        setTitleForm({
+                          name: '',
+                          description: '',
+                          requiresLevel: false,
+                          requiredLevel: 0,
+                          requiresGold: false,
+                          requiredGold: 0,
+                          requiresTasks: false,
+                          requiredTasks: [],
+                        });
+                      }}
+                      fullWidth
+                    >
+                      {titleEditDialog.open ? 'Atualizar Título' : 'Adicionar Título'}
+                    </Button>
+                  </motion.div>
+                  {titleEditDialog.open && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setTitleEditDialog({ open: false, title: null });
+                          setTitleForm({
+                            name: '',
+                            description: '',
+                            requiresLevel: false,
+                            requiredLevel: 0,
+                            requiresGold: false,
+                            requiredGold: 0,
+                            requiresTasks: false,
+                            requiredTasks: [],
+                          });
+                        }}
+                        fullWidth
+                        sx={{ mt: 2 }}
+                      >
+                        Cancelar
+                      </Button>
+                    </motion.div>
+                  )}
+                </Grid>
+              </Grid>
+            </Paper>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Typography
+              variant="h6"
+              gutterBottom
+              sx={{
+                mb: 2,
+                color: textPrimary,
+                textShadow: textShadow,
+                textTransform: 'uppercase',
+                letterSpacing: '2px',
+              }}
+            >
+              Títulos Configurados ({titles.length})
+            </Typography>
+          </motion.div>
+
+          {titles.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <Typography sx={{ color: textSecondary, opacity: 0.7, textAlign: 'center', py: 4 }}>
+                Nenhum título cadastrado
+              </Typography>
+            </motion.div>
+          ) : (
+            <Box>
+              {titles.map((title, index) => (
+                <motion.div
+                  key={title.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.4,
+                    delay: index * 0.05,
+                    ease: [0.22, 1, 0.36, 1]
+                  }}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                >
+                  <Paper
+                    sx={{
+                      p: 2.5,
+                      mb: 2,
+                      backgroundColor: 'background.paper',
+                      border: `1px solid ${primaryColor}4D`,
+                      boxShadow: `0 0 20px ${primaryColor}1A`,
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <EmojiEvents sx={{ color: '#FFD700', fontSize: 24 }} />
+                          <Typography variant="h6" sx={{ color: textPrimary, fontWeight: 600 }}>
+                            {title.name}
+                          </Typography>
+                        </Box>
+                        {title.description && (
+                          <Typography variant="body2" sx={{ mb: 1.5, color: textSecondary, lineHeight: 1.6 }}>
+                            {title.description}
+                          </Typography>
+                        )}
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          {title.requiresLevel && (
+                            <Chip
+                              label={`Nível ${title.requiredLevel || 0}`}
+                              size="small"
+                              sx={{
+                                backgroundColor: `${primaryColor}33`,
+                                color: textPrimary,
+                                border: `1px solid ${primaryColor}80`,
+                              }}
+                            />
+                          )}
+                          {title.requiresGold && (
+                            <Chip
+                              label={`${title.requiredGold || 0} 🪙`}
+                              size="small"
+                              sx={{
+                                backgroundColor: '#FFD70033',
+                                color: '#FFD700',
+                                border: '1px solid #FFD70080',
+                              }}
+                            />
+                          )}
+                          {title.requiresTasks && title.requiredTasks && title.requiredTasks.length > 0 && (
+                            <Chip
+                              label={`${title.requiredTasks.length} Tarefa(s)`}
+                              size="small"
+                              sx={{
+                                backgroundColor: `${primaryColor}1A`,
+                                color: textSecondary,
+                                border: `1px solid ${primaryColor}4D`,
+                              }}
+                            />
+                          )}
+                        </Box>
+                      </Box>
+                      <Box>
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <IconButton
+                            onClick={() => {
+                              setTitleForm({
+                                name: title.name,
+                                description: title.description || '',
+                                requiresLevel: title.requiresLevel || false,
+                                requiredLevel: title.requiredLevel || 0,
+                                requiresGold: title.requiresGold || false,
+                                requiredGold: title.requiredGold || 0,
+                                requiresTasks: title.requiresTasks || false,
+                                requiredTasks: title.requiredTasks || [],
+                              });
+                              setTitleEditDialog({ open: true, title });
+                            }}
+                            sx={{
+                              color: primaryColor,
+                              '&:hover': {
+                                backgroundColor: `${primaryColor}1A`,
+                                boxShadow: `0 0 10px ${primaryColor}80`,
+                              },
+                            }}
+                          >
+                            <Edit />
+                          </IconButton>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <IconButton
+                            onClick={() => {
+                              if (window.confirm('Tem certeza que deseja deletar este título?')) {
+                                const updated = titles.filter(t => t.id !== title.id);
+                                saveTitles(updated);
+                                setTitles(updated);
+                              }
+                            }}
+                            sx={{
+                              color: '#FF0000',
+                              '&:hover': {
+                                backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                                boxShadow: '0 0 10px rgba(255, 0, 0, 0.5)',
+                              },
+                            }}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </motion.div>
+                      </Box>
+                    </Box>
+                  </Paper>
+                </motion.div>
+              ))}
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* Aba: Sincronização */}
+      {adminTab === 4 && (
         <Box>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1953,6 +2469,132 @@ const Admin = () => {
                   )}
                 </Grid>
               </Grid>
+            </Paper>
+          </motion.div>
+
+          {/* Seção de Instalação PWA */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Paper
+              sx={{
+                p: 3,
+                mb: 4,
+                backgroundColor: 'background.paper',
+                border: `2px solid ${primaryColor}80`,
+                boxShadow: `0 0 30px ${primaryColor}33`,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                <GetApp sx={{ color: primaryColor, fontSize: 32 }} />
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: textPrimary,
+                    textShadow: titleTextShadow,
+                    textTransform: 'uppercase',
+                    letterSpacing: '2px',
+                    fontWeight: 600,
+                  }}
+                >
+                  Instalar App (PWA)
+                </Typography>
+              </Box>
+              
+              {isInstalled ? (
+                <Box>
+                  <Paper
+                    sx={{
+                      p: 2,
+                      backgroundColor: `${primaryColor}0D`,
+                      border: `1px solid ${primaryColor}4D`,
+                      mb: 2,
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <CheckCircle sx={{ color: '#00FF00', fontSize: 24 }} />
+                      <Typography variant="subtitle2" sx={{ color: textPrimary, fontWeight: 600 }}>
+                        App Instalado
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: textSecondary }}>
+                      O aplicativo já está instalado no seu dispositivo. Você pode acessá-lo diretamente sem precisar abrir o navegador.
+                    </Typography>
+                  </Paper>
+                </Box>
+              ) : deferredPrompt ? (
+                <Box>
+                  <Typography variant="body2" sx={{ color: textSecondary, mb: 3, lineHeight: 1.8 }}>
+                    Instale este aplicativo no seu dispositivo para ter acesso rápido, trabalhar offline e uma experiência melhor.
+                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'start', gap: 2 }}>
+                      <PhoneAndroid sx={{ color: primaryColor, fontSize: 24, mt: 0.5 }} />
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ color: textPrimary, fontWeight: 600, mb: 0.5 }}>
+                          No Mobile (Android/iPhone)
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: textSecondary, fontSize: '0.85rem' }}>
+                          Clique no botão abaixo ou use o menu do navegador (⋮ ou ⋯) e selecione "Adicionar à tela inicial" ou "Instalar app".
+                        </Typography>
+                      </Box>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', alignItems: 'start', gap: 2 }}>
+                      <Computer sx={{ color: primaryColor, fontSize: 24, mt: 0.5 }} />
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ color: textPrimary, fontWeight: 600, mb: 0.5 }}>
+                          No Desktop (Chrome/Edge)
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: textSecondary, fontSize: '0.85rem' }}>
+                          Clique no botão abaixo ou procure pelo ícone de instalação (⊕) na barra de endereços do navegador.
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                  
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      startIcon={<GetApp />}
+                      onClick={handleInstallPWA}
+                      sx={{
+                        py: 1.5,
+                        fontSize: '1rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Instalar App
+                    </Button>
+                  </motion.div>
+                </Box>
+              ) : (
+                <Box>
+                  <Paper
+                    sx={{
+                      p: 2,
+                      backgroundColor: `${primaryColor}0D`,
+                      border: `1px solid ${primaryColor}4D`,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ color: textSecondary, mb: 2 }}>
+                      O navegador não suporta instalação automática ou o app já está instalado.
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: textSecondary, fontWeight: 600, mb: 1 }}>
+                      Instruções Manuais:
+                    </Typography>
+                    <Box component="ul" sx={{ pl: 2, color: textSecondary, fontSize: '0.85rem' }}>
+                      <li>No Chrome/Edge: Procure pelo ícone de instalação (⊕) na barra de endereços</li>
+                      <li>No Mobile: Use o menu do navegador e selecione "Adicionar à tela inicial"</li>
+                      <li>No Safari (iOS): Use o botão de compartilhar e selecione "Adicionar à Tela de Início"</li>
+                    </Box>
+                  </Paper>
+                </Box>
+              )}
             </Paper>
           </motion.div>
 

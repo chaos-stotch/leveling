@@ -95,7 +95,10 @@ COMMENT ON COLUMN user_saves.updated_at IS 'Data e hora da última atualização
   "shop_categories": "[...]",
   "purchased_items": "[...]",
   "purchase_history": "[...]",
-  "completed_tasks": "[...]"
+  "completed_tasks": "[...]",
+  "titles": "[...]",
+  "earned_titles": "[...]",
+  "selected_title": "title_id"
 }
 */
 

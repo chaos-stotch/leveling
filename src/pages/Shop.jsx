@@ -25,15 +25,9 @@ import {
   getTasks,
   addPurchaseToHistory,
   getPurchaseHistory,
+  getCompletedTasks,
 } from '../utils/storage';
 import { useSound } from '../hooks/useSound';
-
-const COMPLETED_TASKS_KEY = 'leveling_completed_tasks';
-
-const getCompletedTasks = () => {
-  const data = localStorage.getItem(COMPLETED_TASKS_KEY);
-  return data ? JSON.parse(data) : [];
-};
 
 const Shop = () => {
   const theme = useTheme();

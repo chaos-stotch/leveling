@@ -59,6 +59,9 @@ export const getAllLocalData = () => {
     purchased_items: localStorage.getItem('leveling_purchased_items'),
     purchase_history: localStorage.getItem('leveling_purchase_history'),
     completed_tasks: localStorage.getItem('leveling_completed_tasks'),
+    titles: localStorage.getItem('leveling_titles'),
+    earned_titles: localStorage.getItem('leveling_earned_titles'),
+    selected_title: localStorage.getItem('leveling_selected_title'),
   };
 };
 
@@ -74,6 +77,9 @@ export const saveAllLocalData = (data) => {
   if (data.purchased_items) localStorage.setItem('leveling_purchased_items', data.purchased_items);
   if (data.purchase_history) localStorage.setItem('leveling_purchase_history', data.purchase_history);
   if (data.completed_tasks) localStorage.setItem('leveling_completed_tasks', data.completed_tasks);
+  if (data.titles) localStorage.setItem('leveling_titles', data.titles);
+  if (data.earned_titles) localStorage.setItem('leveling_earned_titles', data.earned_titles);
+  if (data.selected_title) localStorage.setItem('leveling_selected_title', data.selected_title);
 };
 
 // Salvar progresso na nuvem

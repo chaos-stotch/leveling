@@ -1,8 +1,17 @@
-import React from 'react';
-import { Box, Typography, Paper, LinearProgress, Grid, useTheme } from '@mui/material';
-import { FitnessCenter, Favorite, Speed, Psychology, Whatshot, Star } from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Paper, LinearProgress, Grid, useTheme, Dialog, DialogTitle, DialogContent, DialogActions, Button, Chip, IconButton } from '@mui/material';
+import { FitnessCenter, Favorite, Speed, Psychology, Whatshot, Star, Close, EmojiEvents } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { getPlayerData, getXPForNextLevel, getSkillXPForNextLevel } from '../utils/storage';
+import { 
+  getPlayerData, 
+  getXPForNextLevel, 
+  getSkillXPForNextLevel,
+  getTitles,
+  getEarnedTitles,
+  getSelectedTitle,
+  setSelectedTitle,
+} from '../utils/storage';
+import { checkAndAwardTitles } from '../utils/titles';
 
 const Statistics = () => {
   const theme = useTheme();
@@ -10,12 +19,35 @@ const Statistics = () => {
   const xpNeeded = getXPForNextLevel(playerData.level);
   const xpProgress = (playerData.xp / xpNeeded) * 100;
   
+  const [titleDialogOpen, setTitleDialogOpen] = useState(false);
+  const [selectedTitleId, setSelectedTitleIdState] = useState(getSelectedTitle());
+  const [earnedTitles, setEarnedTitles] = useState(getEarnedTitles());
+  const [titles, setTitles] = useState(getTitles());
+  
   const primaryColor = theme.palette.primary.main;
   const textPrimary = theme.palette.text.primary;
   const textSecondary = theme.palette.text.secondary;
   const titleTextShadow = theme.custom?.titleTextShadow || `0 0 10px ${primaryColor}, 0 0 20px ${primaryColor}`;
   const textShadow = theme.custom?.textShadow || `0 0 10px ${primaryColor}`;
   const textShadowLarge = theme.custom?.textShadowLarge || `0 0 20px ${primaryColor}, 0 0 40px ${primaryColor}`;
+  
+  // Verificar e conceder títulos quando necessário
+  useEffect(() => {
+    checkAndAwardTitles();
+    setEarnedTitles(getEarnedTitles());
+    setTitles(getTitles());
+    setSelectedTitleIdState(getSelectedTitle());
+  }, [playerData.level, playerData.gold]);
+  
+  const selectedTitle = selectedTitleId ? titles.find(t => t.id === selectedTitleId) : null;
+  const displayTitle = selectedTitle ? selectedTitle.name : 'Sem Título';
+  
+  const handleSelectTitle = (titleId) => {
+    setSelectedTitle(titleId);
+    setSelectedTitleIdState(titleId);
+    // Forçar atualização do componente
+    window.dispatchEvent(new CustomEvent('titleChanged'));
+  };
 
   const skills = [
     { key: 'strength', name: 'STR', fullName: 'Força', icon: FitnessCenter, color: '#FF6B6B' },
@@ -54,25 +86,63 @@ const Statistics = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Typography
-          variant="h5"
-          component="h1"
-          gutterBottom
+        <Paper
+          component={motion.div}
+          whileHover={{ scale: 1.02, y: -2 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setTitleDialogOpen(true)}
           sx={{
-            fontWeight: 'bold',
+            cursor: 'pointer',
             mb: 4,
-            color: textPrimary,
-            textShadow: titleTextShadow,
-            textTransform: 'uppercase',
-            letterSpacing: '2px',
-            border: `1px solid ${primaryColor}40`,
-            p: 1.5,
+            backgroundColor: 'background.paper',
+            border: `2px solid ${primaryColor}80`,
+            boxShadow: `0 0 30px ${primaryColor}33`,
+            p: 2,
             textAlign: 'center',
-            fontSize: '1.5rem',
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: `linear-gradient(135deg, ${primaryColor}1A 0%, ${primaryColor}0D 100%)`,
+              zIndex: 0,
+            },
           }}
         >
-          STATUS
-        </Typography>
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Typography
+              variant="h4"
+              component="h1"
+              sx={{
+                fontWeight: 'bold',
+                color: textPrimary,
+                textShadow: titleTextShadow,
+                textTransform: 'uppercase',
+                letterSpacing: '2px',
+                fontSize: '1.8rem',
+              }}
+            >
+              {displayTitle}
+            </Typography>
+            {selectedTitle && selectedTitle.description && (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: textSecondary,
+                  fontSize: '0.7rem',
+                  mt: 0.5,
+                  display: 'block',
+                }}
+              >
+                {selectedTitle.description}
+              </Typography>
+            )}
+          </Box>
+        </Paper>
       </motion.div>
 
       {/* Nível Geral */}
@@ -150,7 +220,6 @@ const Statistics = () => {
             Faltam {xpNeeded - playerData.xp} XP para o próximo nível
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 2, borderTop: `1px solid ${primaryColor}4D` }}>
-            <Star sx={{ color: '#FFD700', filter: 'drop-shadow(0 0 5px #FFD700)' }} />
             <Typography variant="h6" sx={{ color: '#FFD700', fontWeight: 600, textShadow: '0 0 10px #FFD700' }}>
               {playerData.gold || 0} 🪙
             </Typography>
@@ -269,6 +338,206 @@ const Statistics = () => {
           );
         })}
       </Grid>
+      
+      {/* Dialog de Seleção de Títulos */}
+      <Dialog
+        open={titleDialogOpen}
+        onClose={() => setTitleDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: 'background.paper',
+            border: `2px solid ${primaryColor}80`,
+            boxShadow: `0 0 30px ${primaryColor}33`,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: `1px solid ${primaryColor}4D`,
+            pb: 2,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <EmojiEvents sx={{ color: '#FFD700', fontSize: 28 }} />
+            <Typography
+              variant="h6"
+              sx={{
+                color: textPrimary,
+                textShadow: textShadow,
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+              }}
+            >
+              Seus Títulos
+            </Typography>
+          </Box>
+          <IconButton
+            onClick={() => setTitleDialogOpen(false)}
+            sx={{
+              color: textSecondary,
+              '&:hover': {
+                backgroundColor: `${primaryColor}1A`,
+              },
+            }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          {earnedTitles.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography sx={{ color: textSecondary, opacity: 0.7 }}>
+                Você ainda não ganhou nenhum título
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Opção de remover título */}
+              <Paper
+                component={motion.div}
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  handleSelectTitle(null);
+                  setTitleDialogOpen(false);
+                }}
+                sx={{
+                  p: 2,
+                  cursor: 'pointer',
+                  border: selectedTitleId === null ? `2px solid ${primaryColor}` : `1px solid ${primaryColor}4D`,
+                  backgroundColor: selectedTitleId === null ? `${primaryColor}1A` : 'background.paper',
+                  boxShadow: selectedTitleId === null ? `0 0 20px ${primaryColor}4D` : 'none',
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: textPrimary,
+                    fontWeight: 600,
+                  }}
+                >
+                  Sem Título
+                </Typography>
+                <Typography variant="body2" sx={{ color: textSecondary, fontSize: '0.85rem' }}>
+                  Não exibir nenhum título
+                </Typography>
+              </Paper>
+              
+              {earnedTitles.map((titleId) => {
+                const title = titles.find(t => t.id === titleId);
+                if (!title) return null;
+                const isSelected = selectedTitleId === titleId;
+                
+                return (
+                  <Paper
+                    key={titleId}
+                    component={motion.div}
+                    whileHover={{ scale: 1.02, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      handleSelectTitle(titleId);
+                      setTitleDialogOpen(false);
+                    }}
+                    sx={{
+                      p: 2,
+                      cursor: 'pointer',
+                      border: isSelected ? `2px solid ${primaryColor}` : `1px solid ${primaryColor}4D`,
+                      backgroundColor: isSelected ? `${primaryColor}1A` : 'background.paper',
+                      boxShadow: isSelected ? `0 0 20px ${primaryColor}4D` : 'none',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                      <EmojiEvents sx={{ color: '#FFD700', fontSize: 20 }} />
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          color: textPrimary,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {title.name}
+                      </Typography>
+                      {isSelected && (
+                        <Chip
+                          label="Ativo"
+                          size="small"
+                          sx={{
+                            backgroundColor: primaryColor,
+                            color: 'white',
+                            fontSize: '0.7rem',
+                            height: 20,
+                          }}
+                        />
+                      )}
+                    </Box>
+                    {title.description && (
+                      <Typography variant="body2" sx={{ color: textSecondary, fontSize: '0.85rem', mt: 0.5 }}>
+                        {title.description}
+                      </Typography>
+                    )}
+                    <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+                      {title.requiresLevel && (
+                        <Chip
+                          label={`Nível ${title.requiredLevel}`}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.65rem',
+                            backgroundColor: `${primaryColor}1A`,
+                            color: textSecondary,
+                          }}
+                        />
+                      )}
+                      {title.requiresGold && (
+                        <Chip
+                          label={`${title.requiredGold} 🪙`}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.65rem',
+                            backgroundColor: '#FFD7001A',
+                            color: '#FFD700',
+                          }}
+                        />
+                      )}
+                      {title.requiresTasks && title.requiredTasks && title.requiredTasks.length > 0 && (
+                        <Chip
+                          label={`${title.requiredTasks.length} Tarefa(s)`}
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.65rem',
+                            backgroundColor: `${primaryColor}1A`,
+                            color: textSecondary,
+                          }}
+                        />
+                      )}
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ borderTop: `1px solid ${primaryColor}4D`, p: 2 }}>
+          <Button
+            onClick={() => setTitleDialogOpen(false)}
+            sx={{
+              color: textSecondary,
+              '&:hover': {
+                backgroundColor: `${primaryColor}1A`,
+              },
+            }}
+          >
+            Fechar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

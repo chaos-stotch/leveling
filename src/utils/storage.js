@@ -11,6 +11,10 @@ const STORAGE_KEYS = {
   PURCHASE_HISTORY: 'leveling_purchase_history',
   PROGRESSIVE_TASKS: 'leveling_progressive_tasks',
   TIME_TASKS: 'leveling_time_tasks',
+  TITLES: 'leveling_titles',
+  EARNED_TITLES: 'leveling_earned_titles',
+  SELECTED_TITLE: 'leveling_selected_title',
+  COMPLETED_TASKS: 'leveling_completed_tasks',
 };
 
 export const getPlayerData = () => {
@@ -104,6 +108,15 @@ export const addGold = (amount) => {
   const playerData = getPlayerData();
   playerData.gold = (playerData.gold || 0) + amount;
   savePlayerData(playerData);
+  
+  // Verificar e conceder títulos após ganhar ouro
+  if (amount > 0) {
+    // Importação dinâmica para evitar dependência circular
+    import('./titles').then(({ checkAndAwardTitles }) => {
+      checkAndAwardTitles();
+    });
+  }
+  
   return playerData.gold;
 };
 
@@ -229,5 +242,79 @@ export const getTimeTasks = () => {
 
 export const saveTimeTasks = (timeTasks) => {
   localStorage.setItem(STORAGE_KEYS.TIME_TASKS, JSON.stringify(timeTasks));
+};
+
+// Funções para gerenciar tarefas concluídas
+export const getCompletedTasks = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.COMPLETED_TASKS);
+  return data ? JSON.parse(data) : [];
+};
+
+export const saveCompletedTasks = (completedTasks) => {
+  localStorage.setItem(STORAGE_KEYS.COMPLETED_TASKS, JSON.stringify(completedTasks));
+};
+
+export const addCompletedTask = (taskId) => {
+  const completedTasks = getCompletedTasks();
+  if (!completedTasks.includes(taskId)) {
+    completedTasks.push(taskId);
+    saveCompletedTasks(completedTasks);
+    
+    // Verificar e conceder títulos após concluir tarefa
+    import('./titles').then(({ checkAndAwardTitles }) => {
+      checkAndAwardTitles();
+    });
+  }
+};
+
+export const removeCompletedTask = (taskId) => {
+  const completedTasks = getCompletedTasks();
+  const filtered = completedTasks.filter(id => id !== taskId);
+  saveCompletedTasks(filtered);
+};
+
+// Funções para gerenciar títulos
+export const getTitles = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.TITLES);
+  return data ? JSON.parse(data) : [];
+};
+
+export const saveTitles = (titles) => {
+  localStorage.setItem(STORAGE_KEYS.TITLES, JSON.stringify(titles));
+};
+
+// Funções para gerenciar títulos ganhos
+export const getEarnedTitles = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.EARNED_TITLES);
+  return data ? JSON.parse(data) : [];
+};
+
+export const addEarnedTitle = (titleId) => {
+  const earned = getEarnedTitles();
+  if (!earned.includes(titleId)) {
+    earned.push(titleId);
+    localStorage.setItem(STORAGE_KEYS.EARNED_TITLES, JSON.stringify(earned));
+    return true; // Novo título ganho
+  }
+  return false; // Título já possuído
+};
+
+export const hasEarnedTitle = (titleId) => {
+  const earned = getEarnedTitles();
+  return earned.includes(titleId);
+};
+
+// Funções para gerenciar título selecionado
+export const getSelectedTitle = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.SELECTED_TITLE);
+  return data || null;
+};
+
+export const setSelectedTitle = (titleId) => {
+  if (titleId === null) {
+    localStorage.removeItem(STORAGE_KEYS.SELECTED_TITLE);
+  } else {
+    localStorage.setItem(STORAGE_KEYS.SELECTED_TITLE, titleId);
+  }
 };
 

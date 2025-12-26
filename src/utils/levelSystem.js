@@ -1,4 +1,5 @@
 import { getPlayerData, savePlayerData, getXPForNextLevel, getSkillXPForNextLevel, saveNotification } from './storage';
+import { checkAndAwardTitles } from './titles';
 
 // Adicionar XP e verificar level up
 export const addXP = (amount, skillNames = null, playSound = null) => {
@@ -108,6 +109,11 @@ export const addXP = (amount, skillNames = null, playSound = null) => {
     const { priority, ...notificationData } = notification;
     saveNotification(notificationData);
   });
+  
+  // Verificar e conceder títulos após mudanças de nível
+  if (levelUps.length > 0) {
+    checkAndAwardTitles();
+  }
   
   return { levelUps, skillLevelUps, playerData };
 };
