@@ -279,7 +279,7 @@ const Shop = () => {
       requiredTasks: item.requiredTasks || [],
     });
     
-    playSound('success');
+    playSound('cash');
     loadData();
     setPurchaseDialog({ open: false, item: null });
   };

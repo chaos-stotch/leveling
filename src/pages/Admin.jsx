@@ -23,7 +23,7 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
-import { Add, Delete, Edit, Palette, ShoppingCart, Category, DragIndicator, ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { Add, Delete, Edit, Palette, ShoppingCart, Category, DragIndicator, ArrowUpward, ArrowDownward, CloudUpload, CloudDownload, Storage, CheckCircle, Error as ErrorIcon } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { 
   getTasks, 
@@ -39,6 +39,18 @@ import {
   setGold,
   getPurchasedItems,
 } from '../utils/storage';
+import {
+  getSupabaseConfig,
+  saveSupabaseConfig,
+  getSupabaseClient,
+  saveProgressToCloud,
+  loadProgressFromCloud,
+  checkSyncStatus,
+  getLastSave,
+  getLastRestore,
+} from '../utils/supabase';
+import ConfirmDialog from '../components/ConfirmDialog';
+import SyncConflictDialog from '../components/SyncConflictDialog';
 import { themes } from '../themes';
 import {
   DndContext,
@@ -118,6 +130,18 @@ const Admin = () => {
   const [categoryForm, setCategoryForm] = useState({ name: '' });
   const [activeShopCategoryId, setActiveShopCategoryId] = useState(null);
   const [adminTab, setAdminTab] = useState(0);
+  const [supabaseConfig, setSupabaseConfig] = useState(getSupabaseConfig());
+  const [supabaseForm, setSupabaseForm] = useState({
+    url: '',
+    anonKey: '',
+    userId: '',
+  });
+  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [syncConflictOpen, setSyncConflictOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncMessage, setSyncMessage] = useState({ type: '', text: '' });
 
   // Sensores para drag and drop
   const sensors = useSensors(
@@ -137,12 +161,125 @@ const Admin = () => {
     })
   );
 
+  // Sensores específicos para loja (otimizados para mobile)
+  const shopSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 3,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 100, // Delay similar ao Tasks.jsx
+        tolerance: 8, // Tolerância maior para mobile (melhor que 5px)
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   useEffect(() => {
     loadTasks();
     loadPlayerData();
     loadShopItems();
     loadShopCategories();
+    if (supabaseConfig) {
+      setSupabaseForm({
+        url: supabaseConfig.url || '',
+        anonKey: supabaseConfig.anonKey || '',
+        userId: supabaseConfig.userId || '',
+      });
+    }
+    checkForSyncConflict();
   }, []);
+
+  const checkForSyncConflict = async () => {
+    if (!supabaseConfig || !supabaseConfig.userId) return;
+    
+    try {
+      const status = await checkSyncStatus(supabaseConfig.userId);
+      if (status) {
+        setSyncStatus(status);
+        setSyncConflictOpen(true);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar sincronização:', error);
+    }
+  };
+
+  const handleSaveProgress = async () => {
+    if (!supabaseConfig || !supabaseConfig.userId) {
+      setSyncMessage({ type: 'error', text: 'Configure o banco de dados primeiro' });
+      return;
+    }
+
+    setSyncLoading(true);
+    try {
+      await saveProgressToCloud(supabaseConfig.userId);
+      setSyncMessage({ type: 'success', text: 'Progresso salvo na nuvem com sucesso!' });
+      setTimeout(() => {
+        setSyncMessage({ type: '', text: '' });
+        loadPlayerData();
+        loadTasks();
+        loadShopItems();
+        loadShopCategories();
+      }, 2000);
+    } catch (error) {
+      setSyncMessage({ type: 'error', text: `Erro ao salvar: ${error.message}` });
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleRestoreProgress = async () => {
+    if (!supabaseConfig || !supabaseConfig.userId) {
+      setSyncMessage({ type: 'error', text: 'Configure o banco de dados primeiro' });
+      return;
+    }
+
+    setSyncLoading(true);
+    try {
+      const data = await loadProgressFromCloud(supabaseConfig.userId);
+      if (data) {
+        setSyncMessage({ type: 'success', text: 'Progresso restaurado da nuvem com sucesso!' });
+        setTimeout(() => {
+          setSyncMessage({ type: '', text: '' });
+          loadPlayerData();
+          loadTasks();
+          loadShopItems();
+          loadShopCategories();
+          window.location.reload(); // Recarregar para atualizar todos os componentes
+        }, 2000);
+      } else {
+        setSyncMessage({ type: 'error', text: 'Nenhum save encontrado na nuvem' });
+      }
+    } catch (error) {
+      setSyncMessage({ type: 'error', text: `Erro ao restaurar: ${error.message}` });
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleOverwriteCloud = async () => {
+    setSyncLoading(true);
+    try {
+      await saveProgressToCloud(supabaseConfig.userId);
+      setSyncMessage({ type: 'success', text: 'Nuvem sobrescrita com sucesso!' });
+      setSyncConflictOpen(false);
+      setTimeout(() => {
+        setSyncMessage({ type: '', text: '' });
+        loadPlayerData();
+        loadTasks();
+        loadShopItems();
+        loadShopCategories();
+      }, 2000);
+    } catch (error) {
+      setSyncMessage({ type: 'error', text: `Erro ao sobrescrever: ${error.message}` });
+    } finally {
+      setSyncLoading(false);
+    }
+  };
 
   const loadTasks = () => {
     const allTasks = getTasks();
@@ -345,6 +482,7 @@ const Admin = () => {
   };
 
   return (
+    <>
     <Box sx={{ p: 3, minHeight: '100vh', backgroundColor: 'background.default' }}>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -381,14 +519,25 @@ const Admin = () => {
       <Tabs
         value={adminTab}
         onChange={(e, newValue) => setAdminTab(newValue)}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
         sx={{
           mb: 4,
+          '& .MuiTabs-scrollButtons': {
+            color: textSecondary,
+            '&.Mui-disabled': {
+              opacity: 0.3,
+            },
+          },
           '& .MuiTab-root': {
             color: textSecondary,
             opacity: 0.6,
             textTransform: 'uppercase',
             fontWeight: 600,
             transition: 'all 0.3s ease',
+            minWidth: 'auto',
+            padding: '12px 16px',
             '&.Mui-selected': {
               color: textPrimary,
               opacity: 1,
@@ -405,6 +554,7 @@ const Admin = () => {
         <Tab label="Controle de Níveis" />
         <Tab label="Controle de Tarefas" />
         <Tab label="Controle da Loja" />
+        <Tab label="Sincronização" />
       </Tabs>
 
       {/* Aba: Controle de Níveis */}
@@ -1056,7 +1206,7 @@ const Admin = () => {
               </Button>
             </Box>
             <DndContext
-              sensors={sensors}
+              sensors={shopSensors}
               collisionDetection={closestCenter}
               onDragEnd={(event) => {
                 const { active, over } = event;
@@ -1407,7 +1557,7 @@ const Admin = () => {
                         {category.name}
                       </Typography>
                       <DndContext
-                        sensors={sensors}
+                        sensors={shopSensors}
                         collisionDetection={closestCenter}
                         onDragEnd={(event) => {
                           const { active, over } = event;
@@ -1490,8 +1640,299 @@ const Admin = () => {
         </Box>
       )}
 
+      {/* Aba: Sincronização */}
+      {adminTab === 3 && (
+        <Box>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Paper
+              sx={{
+                p: 3,
+                mb: 4,
+                backgroundColor: 'background.paper',
+                border: `2px solid ${primaryColor}80`,
+                boxShadow: `0 0 30px ${primaryColor}33`,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                <Storage sx={{ color: primaryColor, fontSize: 32 }} />
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: textPrimary,
+                    textShadow: titleTextShadow,
+                    textTransform: 'uppercase',
+                    letterSpacing: '2px',
+                    fontWeight: 600,
+                  }}
+                >
+                  Configuração do Banco de Dados
+                </Typography>
+              </Box>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="URL do Supabase"
+                    value={supabaseForm.url}
+                    onChange={(e) => {
+                      let url = e.target.value.trim();
+                      // Remover /dashboard/project/... se o usuário colar a URL do dashboard
+                      if (url.includes('/dashboard/project/')) {
+                        const match = url.match(/project\/([^/]+)/);
+                        if (match) {
+                          url = `https://${match[1]}.supabase.co`;
+                        }
+                      }
+                      setSupabaseForm({ ...supabaseForm, url });
+                    }}
+                    placeholder="https://seu-projeto.supabase.co"
+                    helperText="URL da API do Supabase (ex: https://seu-projeto.supabase.co). Encontre em Settings > API > Project URL"
+                    error={supabaseForm.url && !supabaseForm.url.includes('.supabase.co')}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Chave Anônima (anon key)"
+                    value={supabaseForm.anonKey}
+                    onChange={(e) => setSupabaseForm({ ...supabaseForm, anonKey: e.target.value })}
+                    type="password"
+                    helperText="Chave pública do Supabase (anon key)"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="ID do Usuário"
+                    value={supabaseForm.userId}
+                    onChange={(e) => setSupabaseForm({ ...supabaseForm, userId: e.target.value })}
+                    placeholder="user_123"
+                    helperText="ID único para identificar seu progresso na nuvem"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        variant="contained"
+                        onClick={() => {
+                          if (!supabaseForm.url || !supabaseForm.anonKey || !supabaseForm.userId) {
+                            setSyncMessage({ type: 'error', text: 'Preencha todos os campos' });
+                            return;
+                          }
+                          // Validar URL
+                          if (!supabaseForm.url.includes('.supabase.co')) {
+                            setSyncMessage({ type: 'error', text: 'URL inválida. Use a URL da API (ex: https://seu-projeto.supabase.co)' });
+                            return;
+                          }
+                          // Garantir que a URL termina sem barra
+                          const cleanUrl = supabaseForm.url.replace(/\/$/, '');
+                          const config = { ...supabaseForm, url: cleanUrl };
+                          saveSupabaseConfig(config);
+                          setSupabaseConfig(config);
+                          setSyncMessage({ type: 'success', text: 'Configuração salva com sucesso!' });
+                          setTimeout(() => setSyncMessage({ type: '', text: '' }), 3000);
+                        }}
+                        startIcon={<CheckCircle />}
+                      >
+                        Salvar Configuração
+                      </Button>
+                    </motion.div>
+                    {supabaseConfig && (
+                      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Button
+                          variant="outlined"
+                          onClick={() => {
+                            localStorage.removeItem('leveling_supabase_config');
+                            setSupabaseConfig(null);
+                            setSupabaseForm({ url: '', anonKey: '', userId: '' });
+                            setSyncMessage({ type: 'success', text: 'Configuração removida' });
+                            setTimeout(() => setSyncMessage({ type: '', text: '' }), 3000);
+                          }}
+                        >
+                          Remover Configuração
+                        </Button>
+                      </motion.div>
+                    )}
+                  </Box>
+                  {syncMessage.text && (
+                    <Box sx={{ mt: 2 }}>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          backgroundColor: syncMessage.type === 'error' ? 'rgba(255, 0, 0, 0.1)' : 'rgba(0, 255, 0, 0.1)',
+                          border: `1px solid ${syncMessage.type === 'error' ? '#FF0000' : '#00FF00'}80`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                        }}
+                      >
+                        {syncMessage.type === 'error' ? (
+                          <ErrorIcon sx={{ color: '#FF0000' }} />
+                        ) : (
+                          <CheckCircle sx={{ color: '#00FF00' }} />
+                        )}
+                        <Typography
+                          sx={{
+                            color: syncMessage.type === 'error' ? '#FF0000' : '#00FF00',
+                          }}
+                        >
+                          {syncMessage.text}
+                        </Typography>
+                      </Paper>
+                    </Box>
+                  )}
+                </Grid>
+              </Grid>
+            </Paper>
+          </motion.div>
+
+          {supabaseConfig && (
+            <>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Paper
+                  sx={{
+                    p: 3,
+                    mb: 4,
+                    backgroundColor: 'background.paper',
+                    border: `2px solid ${primaryColor}80`,
+                    boxShadow: `0 0 30px ${primaryColor}33`,
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 3,
+                      color: textPrimary,
+                      textShadow: titleTextShadow,
+                      textTransform: 'uppercase',
+                      letterSpacing: '2px',
+                    }}
+                  >
+                    Sincronização de Progresso
+                  </Typography>
+
+                  <Box sx={{ mb: 3 }}>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        mb: 2,
+                        backgroundColor: `${primaryColor}0D`,
+                        border: `1px solid ${primaryColor}4D`,
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ color: textPrimary, fontWeight: 600, mb: 1 }}>
+                        Último Save:
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: textSecondary }}>
+                        {getLastSave() ? new Date(getLastSave()).toLocaleString('pt-BR') : 'Nunca'}
+                      </Typography>
+                    </Paper>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        backgroundColor: `${primaryColor}0D`,
+                        border: `1px solid ${primaryColor}4D`,
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ color: textPrimary, fontWeight: 600, mb: 1 }}>
+                        Última Restauração:
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: textSecondary }}>
+                        {getLastRestore() ? new Date(getLastRestore()).toLocaleString('pt-BR') : 'Nunca'}
+                      </Typography>
+                    </Paper>
+                  </Box>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Button
+                          variant="contained"
+                          fullWidth
+                          startIcon={<CloudUpload />}
+                          onClick={() => setSaveConfirmOpen(true)}
+                          disabled={syncLoading}
+                          sx={{
+                            py: 1.5,
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Salvar Progresso na Nuvem
+                        </Button>
+                      </motion.div>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Button
+                          variant="contained"
+                          fullWidth
+                          startIcon={<CloudDownload />}
+                          onClick={() => setRestoreConfirmOpen(true)}
+                          disabled={syncLoading}
+                          sx={{
+                            py: 1.5,
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Carregar Progresso da Nuvem
+                        </Button>
+                      </motion.div>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </motion.div>
+            </>
+          )}
+        </Box>
+      )}
+
     </Box>
-    
+
+    {/* Diálogos de Confirmação */}
+    <ConfirmDialog
+      open={saveConfirmOpen}
+      onClose={() => setSaveConfirmOpen(false)}
+      onConfirm={handleSaveProgress}
+      action="salvar"
+      title="Confirmar Salvamento"
+      message="Tem certeza que deseja salvar seu progresso na nuvem? Esta ação irá sobrescrever qualquer save anterior."
+    />
+
+    <ConfirmDialog
+      open={restoreConfirmOpen}
+      onClose={() => setRestoreConfirmOpen(false)}
+      onConfirm={handleRestoreProgress}
+      action="restaurar"
+      title="Confirmar Restauração"
+      message="Tem certeza que deseja restaurar o progresso da nuvem? Esta ação irá sobrescrever todos os dados locais atuais."
+    />
+
+    <SyncConflictDialog
+      open={syncConflictOpen}
+      onClose={() => setSyncConflictOpen(false)}
+      onRestore={async () => {
+        setSyncConflictOpen(false);
+        setRestoreConfirmOpen(true);
+      }}
+      onOverwrite={handleOverwriteCloud}
+      onIgnore={() => {
+        setSyncConflictOpen(false);
+      }}
+      syncStatus={syncStatus}
+    />
+    </>
   );
 };
 
@@ -1527,9 +1968,28 @@ const CategoryItem = ({ category, onDelete }) => {
         gap: 2,
         backgroundColor: 'background.paper',
         border: `1px solid ${primaryColor}4D`,
+        position: 'relative',
+        // Prevenir interferência de gestos no mobile
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
       }}
     >
-      <Box {...attributes} {...listeners} sx={{ cursor: 'grab', color: textSecondary }}>
+      <Box 
+        {...attributes} 
+        {...listeners} 
+        sx={{ 
+          cursor: 'grab', 
+          color: textSecondary,
+          touchAction: 'none', // Importante para mobile
+          userSelect: 'none',
+          padding: 1,
+          display: 'flex',
+          alignItems: 'center',
+          '&:active': {
+            cursor: 'grabbing',
+          },
+        }}
+      >
         <DragIndicator />
       </Box>
       <Category sx={{ color: primaryColor }} />
@@ -1581,6 +2041,10 @@ const ShopItemCard = ({ item, onEdit, onDelete, tasks = [] }) => {
         backgroundColor: 'background.paper',
         border: `1px solid ${primaryColor}4D`,
         boxShadow: `0 0 20px ${primaryColor}1A`,
+        position: 'relative',
+        // Prevenir interferência de gestos no mobile
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
       }}
     >
       <Box sx={{ display: 'flex', gap: 2 }}>
@@ -1681,7 +2145,26 @@ const ShopItemCard = ({ item, onEdit, onDelete, tasks = [] }) => {
           </Box>
         </Box>
         <Box>
-          <Box {...attributes} {...listeners} sx={{ cursor: 'grab', color: textSecondary, mb: 1 }}>
+          <Box 
+            {...attributes} 
+            {...listeners} 
+            sx={{ 
+              cursor: 'grab', 
+              color: textSecondary, 
+              mb: 1,
+              touchAction: 'none', // Importante para mobile
+              userSelect: 'none',
+              padding: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 44, // Área mínima de toque para mobile (44x44px)
+              minHeight: 44,
+              '&:active': {
+                cursor: 'grabbing',
+              },
+            }}
+          >
             <DragIndicator />
           </Box>
           <IconButton

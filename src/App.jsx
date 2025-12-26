@@ -11,9 +11,12 @@ import Shop from './pages/Shop';
 import NotificationModal from './components/NotificationModal';
 import BlockedScreen from './components/BlockedScreen';
 import ClickSoundProvider from './components/ClickSoundProvider';
+import SyncConflictDialog from './components/SyncConflictDialog';
+import ConfirmDialog from './components/ConfirmDialog';
 import { useSound } from './hooks/useSound';
 import { isBlocked, getNotifications, getSelectedTheme } from './utils/storage';
 import { getTheme } from './themes';
+import { getSupabaseConfig, checkSyncStatus, saveProgressToCloud, loadProgressFromCloud } from './utils/supabase';
 
 const createAppTheme = (themeConfig) => {
   return createTheme({
@@ -161,6 +164,9 @@ function App() {
   const [notificationQueue, setNotificationQueue] = useState([]);
   const [lastNotificationCheck, setLastNotificationCheck] = useState(Date.now());
   const [selectedThemeId, setSelectedThemeId] = useState(getSelectedTheme());
+  const [syncConflictOpen, setSyncConflictOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const { playSound } = useSound();
 
   const themeConfig = getTheme(selectedThemeId);
@@ -174,6 +180,24 @@ function App() {
     return () => {
       window.removeEventListener('themeChanged', handleThemeChange);
     };
+  }, []);
+
+  useEffect(() => {
+    const checkSync = async () => {
+      const config = getSupabaseConfig();
+      if (config && config.userId) {
+        try {
+          const status = await checkSyncStatus(config.userId);
+          if (status) {
+            setSyncStatus(status);
+            setSyncConflictOpen(true);
+          }
+        } catch (error) {
+          console.error('Erro ao verificar sincronização:', error);
+        }
+      }
+    };
+    checkSync();
   }, []);
 
   useEffect(() => {
@@ -362,6 +386,48 @@ function App() {
           open={showNotification}
           notification={notification}
           onClose={handleCloseNotification}
+        />
+        <SyncConflictDialog
+          open={syncConflictOpen}
+          onClose={() => setSyncConflictOpen(false)}
+          onRestore={() => {
+            setSyncConflictOpen(false);
+            setRestoreConfirmOpen(true);
+          }}
+          onOverwrite={async () => {
+            const config = getSupabaseConfig();
+            if (config && config.userId) {
+              try {
+                await saveProgressToCloud(config.userId);
+                setSyncConflictOpen(false);
+                window.location.reload();
+              } catch (error) {
+                alert(`Erro ao sobrescrever: ${error.message}`);
+              }
+            }
+          }}
+          onIgnore={() => {
+            setSyncConflictOpen(false);
+          }}
+          syncStatus={syncStatus}
+        />
+        <ConfirmDialog
+          open={restoreConfirmOpen}
+          onClose={() => setRestoreConfirmOpen(false)}
+          onConfirm={async () => {
+            const config = getSupabaseConfig();
+            if (config && config.userId) {
+              try {
+                await loadProgressFromCloud(config.userId);
+                window.location.reload();
+              } catch (error) {
+                alert(`Erro ao restaurar: ${error.message}`);
+              }
+            }
+          }}
+          action="restaurar"
+          title="Confirmar Restauração"
+          message="Tem certeza que deseja restaurar o progresso da nuvem? Esta ação irá sobrescrever todos os dados locais atuais."
         />
       </ClickSoundProvider>
     </ThemeProvider>
