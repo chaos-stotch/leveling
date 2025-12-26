@@ -1405,14 +1405,25 @@ const Tasks = ({ onTaskComplete }) => {
         <Tabs
           value={tabValue}
           onChange={(e, v) => setTabValue(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             mb: 3,
+            '& .MuiTabs-scrollButtons': {
+              color: textSecondary,
+              '&.Mui-disabled': {
+                opacity: 0.3,
+              },
+            },
             '& .MuiTab-root': {
               color: textSecondary,
               opacity: 0.6,
               textTransform: 'uppercase',
               fontWeight: 600,
               transition: 'all 0.3s ease',
+              minWidth: 'auto',
+              padding: '12px 16px',
               '&.Mui-selected': {
                 color: textPrimary,
                 opacity: 1,
