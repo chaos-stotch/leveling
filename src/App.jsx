@@ -188,7 +188,7 @@ function App() {
       if (config && config.userId) {
         try {
           const status = await checkSyncStatus(config.userId);
-          if (status) {
+          if (status && status.type === 'cloud_newer') {
             setSyncStatus(status);
             setSyncConflictOpen(true);
           }

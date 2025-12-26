@@ -206,7 +206,7 @@ const Admin = () => {
     
     try {
       const status = await checkSyncStatus(supabaseConfig.userId);
-      if (status) {
+      if (status && status.type === 'cloud_newer') {
         setSyncStatus(status);
         setSyncConflictOpen(true);
       }
