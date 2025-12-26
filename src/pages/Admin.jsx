@@ -110,6 +110,13 @@ const Admin = () => {
     skills: [],
     duration: 60,
     active: true,
+    // Campos para tarefa progressiva
+    baseXp: 1,
+    baseGold: 1,
+    intervalSeconds: 300, // 5 minutos em segundos
+    formula: 'linear', // linear, exponential, quadratic
+    formulaMultiplier: 1,
+    // Campos para tarefa por ciclos (são os mesmos da progressiva)
   });
   const [editDialog, setEditDialog] = useState({ open: false, task: null });
   const [shopItems, setShopItems] = useState([]);
@@ -347,6 +354,11 @@ const Admin = () => {
       skills: skills,
       duration: task.duration || 60,
       active: task.active !== false, // Default true se não definido
+      baseXp: task.baseXp || 1,
+      baseGold: task.baseGold || 1,
+      intervalSeconds: task.intervalSeconds || 300,
+      formula: task.formula || 'linear',
+      formulaMultiplier: task.formulaMultiplier || 1,
     });
   };
 
@@ -387,6 +399,11 @@ const Admin = () => {
       skills: [],
       duration: 60,
       active: true,
+      baseXp: 1,
+      baseGold: 1,
+      intervalSeconds: 300,
+      formula: 'linear',
+      formulaMultiplier: 1,
     });
   };
 
@@ -832,6 +849,8 @@ const Admin = () => {
                     >
                       <MenuItem value="common">Comum</MenuItem>
                       <MenuItem value="time">Por Tempo</MenuItem>
+                      <MenuItem value="progressive">Progressiva</MenuItem>
+                      <MenuItem value="cycle">Por Ciclos Manuais</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -900,6 +919,107 @@ const Admin = () => {
                       onChange={(e) => handleInputChange('duration', parseInt(e.target.value) || 60)}
                     />
                   </Grid>
+                )}
+                {(formData.type === 'progressive' || formData.type === 'cycle') && (
+                  <>
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" sx={{ mb: 2, color: textPrimary, fontWeight: 600 }}>
+                        {formData.type === 'progressive' ? 'Configuração de Tarefa Progressiva' : 'Configuração de Tarefa por Ciclos Manuais'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        type="number"
+                        label="XP Base por Intervalo"
+                        value={formData.baseXp}
+                        onChange={(e) => handleInputChange('baseXp', parseInt(e.target.value) || 1)}
+                        helperText="XP ganho no primeiro intervalo"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        type="number"
+                        label="Ouro Base por Intervalo"
+                        value={formData.baseGold}
+                        onChange={(e) => handleInputChange('baseGold', parseInt(e.target.value) || 1)}
+                        helperText="Ouro ganho no primeiro intervalo"
+                      />
+                    </Grid>
+                    {formData.type === 'progressive' && (
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label="Intervalo (segundos)"
+                          value={formData.intervalSeconds}
+                          onChange={(e) => handleInputChange('intervalSeconds', parseInt(e.target.value) || 300)}
+                          helperText="Tempo entre cada ganho de recompensa (ex: 300 = 5 minutos)"
+                        />
+                      </Grid>
+                    )}
+                    {formData.type === 'cycle' && (
+                      <Grid item xs={12}>
+                        <Paper sx={{ p: 2, backgroundColor: `${primaryColor}0D`, border: `1px solid ${primaryColor}4D` }}>
+                          <Typography variant="body2" sx={{ color: textSecondary }}>
+                            <strong>Nota:</strong> Este tipo de tarefa funciona com ciclos manuais. O usuário marca cada ciclo completado manualmente usando botões de incremento/decremento.
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    )}
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Fórmula de Crescimento</InputLabel>
+                        <Select
+                          value={formData.formula}
+                          label="Fórmula de Crescimento"
+                          onChange={(e) => handleInputChange('formula', e.target.value)}
+                        >
+                          <MenuItem value="linear">Linear (1x, 2x, 3x...)</MenuItem>
+                          <MenuItem value="exponential">Exponencial (1x, 2x, 4x, 8x...)</MenuItem>
+                          <MenuItem value="quadratic">Quadrática (1x, 4x, 9x, 16x...)</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        type="number"
+                        label="Multiplicador da Fórmula"
+                        value={formData.formulaMultiplier}
+                        onChange={(e) => handleInputChange('formulaMultiplier', parseFloat(e.target.value) || 1)}
+                        helperText="Multiplica o resultado da fórmula (ex: 0.5 = metade, 2 = dobro)"
+                        inputProps={{ step: 0.1 }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Paper sx={{ p: 2, backgroundColor: `${primaryColor}0D`, border: `1px solid ${primaryColor}4D` }}>
+                        <Typography variant="body2" sx={{ color: textSecondary, mb: 1 }}>
+                          <strong>Exemplo de Recompensas:</strong>
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: textSecondary }}>
+                          {(() => {
+                            const intervals = [1, 2, 3];
+                            return intervals.map(i => {
+                              let multiplier = 1;
+                              if (formData.formula === 'linear') {
+                                multiplier = i;
+                              } else if (formData.formula === 'exponential') {
+                                multiplier = Math.pow(2, i - 1);
+                              } else if (formData.formula === 'quadratic') {
+                                multiplier = i * i;
+                              }
+                              multiplier *= (formData.formulaMultiplier || 1);
+                              const xp = Math.floor((formData.baseXp || 1) * multiplier);
+                              const gold = Math.floor((formData.baseGold || 1) * multiplier);
+                              return `${formData.type === 'cycle' ? 'Ciclo' : 'Intervalo'} ${i}: ${xp} XP + ${gold} 🪙`;
+                            }).join(' | ');
+                          })()}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  </>
                 )}
                 <Grid item xs={12}>
                   <FormControlLabel
@@ -1046,7 +1166,7 @@ const Admin = () => {
 
                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                           <Chip
-                            label={task.type === 'common' ? 'Comum' : 'Por Tempo'}
+                            label={task.type === 'common' ? 'Comum' : task.type === 'time' ? 'Por Tempo' : task.type === 'progressive' ? 'Progressiva' : task.type === 'cycle' ? 'Por Ciclos' : 'Desconhecido'}
                             size="small"
                             sx={{
                               backgroundColor: `${primaryColor}33`,
@@ -1073,6 +1193,50 @@ const Admin = () => {
                                 border: '1px solid #FFD70080',
                               }}
                             />
+                          )}
+                          {(task.type === 'progressive' || task.type === 'cycle') && (
+                            <>
+                              <Chip
+                                label={`${task.baseXp || 1} XP base`}
+                                size="small"
+                                sx={{
+                                  backgroundColor: `${primaryColor}1A`,
+                                  color: textSecondary,
+                                  border: `1px solid ${primaryColor}4D`,
+                                }}
+                              />
+                              <Chip
+                                label={`${task.baseGold || 1} 🪙 base`}
+                                size="small"
+                                sx={{
+                                  backgroundColor: '#FFD7001A',
+                                  color: '#FFD700',
+                                  border: '1px solid #FFD7004D',
+                                }}
+                              />
+                              {task.type === 'progressive' && (
+                                <Chip
+                                  label={`${Math.floor((task.intervalSeconds || 300) / 60)}min/intervalo`}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: `${primaryColor}1A`,
+                                    color: textSecondary,
+                                    border: `1px solid ${primaryColor}4D`,
+                                  }}
+                                />
+                              )}
+                              {task.type === 'cycle' && (
+                                <Chip
+                                  label="Ciclos Manuais"
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: `${primaryColor}1A`,
+                                    color: textSecondary,
+                                    border: `1px solid ${primaryColor}4D`,
+                                  }}
+                                />
+                              )}
+                            </>
                           )}
                           {(() => {
                             const skills = task.skills

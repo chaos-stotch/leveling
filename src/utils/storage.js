@@ -9,6 +9,8 @@ const STORAGE_KEYS = {
   SHOP_CATEGORIES: 'leveling_shop_categories',
   PURCHASED_ITEMS: 'leveling_purchased_items',
   PURCHASE_HISTORY: 'leveling_purchase_history',
+  PROGRESSIVE_TASKS: 'leveling_progressive_tasks',
+  TIME_TASKS: 'leveling_time_tasks',
 };
 
 export const getPlayerData = () => {
@@ -191,5 +193,41 @@ export const addPurchaseToHistory = (item, purchaseData = {}) => {
   }
   localStorage.setItem(STORAGE_KEYS.PURCHASE_HISTORY, JSON.stringify(history));
   return purchase;
+};
+
+// Funções para gerenciar estado de tarefas progressivas
+export const getProgressiveTasks = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.PROGRESSIVE_TASKS);
+  if (data) {
+    const parsed = JSON.parse(data);
+    // Converter timestamps de string para número se necessário
+    const result = {};
+    Object.keys(parsed).forEach(taskId => {
+      const taskState = parsed[taskId];
+      result[taskId] = {
+        ...taskState,
+        startedAt: typeof taskState.startedAt === 'string' ? new Date(taskState.startedAt).getTime() : taskState.startedAt,
+        pausedAt: taskState.pausedAt ? (typeof taskState.pausedAt === 'string' ? new Date(taskState.pausedAt).getTime() : taskState.pausedAt) : null,
+        totalElapsed: taskState.totalElapsed || 0,
+        paused: taskState.paused || false,
+      };
+    });
+    return result;
+  }
+  return {};
+};
+
+export const saveProgressiveTasks = (progressiveTasks) => {
+  localStorage.setItem(STORAGE_KEYS.PROGRESSIVE_TASKS, JSON.stringify(progressiveTasks));
+};
+
+// Funções para gerenciar estado de tarefas por tempo
+export const getTimeTasks = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.TIME_TASKS);
+  return data ? JSON.parse(data) : {};
+};
+
+export const saveTimeTasks = (timeTasks) => {
+  localStorage.setItem(STORAGE_KEYS.TIME_TASKS, JSON.stringify(timeTasks));
 };
 
