@@ -17,8 +17,9 @@ export const checkAndAwardTitles = () => {
   const newTitles = [];
   
   titles.forEach((title) => {
-    // Se já ganhou, pular
-    if (earnedTitles.includes(title.id)) {
+    // Se já ganhou, pular (normalizar para comparação)
+    const titleIdStr = String(title.id);
+    if (earnedTitles.some(id => String(id) === titleIdStr)) {
       return;
     }
     
@@ -40,9 +41,11 @@ export const checkAndAwardTitles = () => {
     
     // Verificar condição de tarefas (se requerida)
     if (title.requiresTasks && title.requiredTasks && title.requiredTasks.length > 0) {
+      // Normalizar IDs para string para comparação
+      const completedTasksStr = completedTasks.map(id => String(id));
       // Verificar se todas as tarefas requeridas foram concluídas
       const allTasksCompleted = title.requiredTasks.every(taskId => 
-        completedTasks.includes(taskId.toString())
+        completedTasksStr.includes(String(taskId))
       );
       if (!allTasksCompleted) {
         shouldAward = false;
@@ -51,7 +54,7 @@ export const checkAndAwardTitles = () => {
     
     // Se atendeu todas as condições requeridas, conceder título
     if (shouldAward) {
-      const isNew = addEarnedTitle(title.id);
+      const isNew = addEarnedTitle(titleIdStr);
       if (isNew) {
         newTitles.push(title);
         // Criar notificação

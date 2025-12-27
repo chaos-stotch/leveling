@@ -247,7 +247,12 @@ export const saveTimeTasks = (timeTasks) => {
 // Funções para gerenciar tarefas concluídas
 export const getCompletedTasks = () => {
   const data = localStorage.getItem(STORAGE_KEYS.COMPLETED_TASKS);
-  return data ? JSON.parse(data) : [];
+  if (data) {
+    const parsed = JSON.parse(data);
+    // Normalizar todos os IDs para string para manter consistência
+    return parsed.map(id => String(id));
+  }
+  return [];
 };
 
 export const saveCompletedTasks = (completedTasks) => {
@@ -256,8 +261,12 @@ export const saveCompletedTasks = (completedTasks) => {
 
 export const addCompletedTask = (taskId) => {
   const completedTasks = getCompletedTasks();
-  if (!completedTasks.includes(taskId)) {
-    completedTasks.push(taskId);
+  // Normalizar para string para manter consistência
+  const taskIdStr = String(taskId);
+  // Verificar se já existe (comparando como string)
+  const exists = completedTasks.some(id => String(id) === taskIdStr);
+  if (!exists) {
+    completedTasks.push(taskIdStr);
     saveCompletedTasks(completedTasks);
     
     // Verificar e conceder títulos após concluir tarefa
@@ -269,7 +278,8 @@ export const addCompletedTask = (taskId) => {
 
 export const removeCompletedTask = (taskId) => {
   const completedTasks = getCompletedTasks();
-  const filtered = completedTasks.filter(id => id !== taskId);
+  const taskIdStr = String(taskId);
+  const filtered = completedTasks.filter(id => String(id) !== taskIdStr);
   saveCompletedTasks(filtered);
 };
 
