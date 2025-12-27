@@ -1,4 +1,7 @@
-// Sistema de armazenamento local
+// Sistema de armazenamento local com IndexedDB e localStorage fallback
+import db, { migrateFromLocalStorage } from './db.js';
+import { addMutation } from './db.js';
+
 const STORAGE_KEYS = {
   PLAYER_DATA: 'leveling_player_data',
   TASKS: 'leveling_tasks',
@@ -17,11 +20,38 @@ const STORAGE_KEYS = {
   COMPLETED_TASKS: 'leveling_completed_tasks',
 };
 
-export const getPlayerData = () => {
+// Helper to use IndexedDB with localStorage fallback
+const useIndexedDB = typeof indexedDB !== 'undefined';
+
+// Initialize migration on first load
+let migrationPromise = null;
+export const initStorage = async () => {
+  if (!migrationPromise) {
+    migrationPromise = migrateFromLocalStorage();
+  }
+  return migrationPromise;
+};
+
+// Player Data
+export const getPlayerData = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      const record = await db.playerData.get('player');
+      if (record && record.value) {
+        const parsed = record.value;
+        if (parsed.gold === undefined) {
+          parsed.gold = 0;
+        }
+        return parsed;
+      }
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.PLAYER_DATA);
   if (data) {
     const parsed = JSON.parse(data);
-    // Garantir que gold existe
     if (parsed.gold === undefined) {
       parsed.gold = 0;
     }
@@ -41,39 +71,98 @@ export const getPlayerData = () => {
   };
 };
 
-export const savePlayerData = (data) => {
+export const savePlayerData = async (data) => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      await db.playerData.put({ key: 'player', value: data });
+      await addMutation('playerData', data);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   localStorage.setItem(STORAGE_KEYS.PLAYER_DATA, JSON.stringify(data));
 };
 
-export const getTasks = () => {
+// Tasks
+export const getTasks = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      return await db.tasks.toArray();
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.TASKS);
   return data ? JSON.parse(data) : [];
 };
 
-export const saveTasks = (tasks) => {
+export const saveTasks = async (tasks) => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      await db.tasks.clear();
+      if (tasks.length > 0) {
+        await db.tasks.bulkPut(tasks);
+      }
+      await addMutation('tasks', tasks);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
 };
 
-export const getNotifications = () => {
+// Notifications
+export const getNotifications = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      return await db.notifications.orderBy('timestamp').reverse().toArray();
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
   return data ? JSON.parse(data) : [];
 };
 
-export const saveNotification = (notification) => {
-  const notifications = getNotifications();
-  notifications.unshift({
+export const saveNotification = async (notification) => {
+  await initStorage();
+  const newNotification = {
     ...notification,
     id: Date.now(),
     timestamp: new Date().toISOString(),
-  });
-  // Manter apenas as últimas 100 notificações
+  };
+  
+  if (useIndexedDB) {
+    try {
+      await db.notifications.add(newNotification);
+      // Keep only last 100
+      const count = await db.notifications.count();
+      if (count > 100) {
+        const toDelete = await db.notifications.orderBy('timestamp').limit(count - 100).toArray();
+        await db.notifications.bulkDelete(toDelete.map(n => n.id));
+      }
+      await addMutation('notification', newNotification);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
+  
+  const notifications = await getNotifications();
+  notifications.unshift(newNotification);
   if (notifications.length > 100) {
     notifications.splice(100);
   }
   localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
 };
 
-
+// Blocked state
 export const isBlocked = () => {
   const data = localStorage.getItem(STORAGE_KEYS.BLOCKED);
   return data === 'true';
@@ -83,17 +172,16 @@ export const setBlocked = (blocked) => {
   localStorage.setItem(STORAGE_KEYS.BLOCKED, blocked ? 'true' : 'false');
 };
 
-// Calcular XP necessário para próximo nível
+// XP calculations
 export const getXPForNextLevel = (currentLevel) => {
   return currentLevel * 100;
 };
 
-// Calcular XP necessário para próximo nível de habilidade
 export const getSkillXPForNextLevel = (currentLevel) => {
   return currentLevel * 50;
 };
 
-// Gerenciamento de tema
+// Theme
 export const getSelectedTheme = () => {
   const theme = localStorage.getItem(STORAGE_KEYS.THEME);
   return theme || 'soloLeveling';
@@ -103,15 +191,13 @@ export const saveSelectedTheme = (themeId) => {
   localStorage.setItem(STORAGE_KEYS.THEME, themeId);
 };
 
-// Funções para gerenciar ouro do jogador
-export const addGold = (amount) => {
-  const playerData = getPlayerData();
+// Gold management
+export const addGold = async (amount) => {
+  const playerData = await getPlayerData();
   playerData.gold = (playerData.gold || 0) + amount;
-  savePlayerData(playerData);
+  await savePlayerData(playerData);
   
-  // Verificar e conceder títulos após ganhar ouro
   if (amount > 0) {
-    // Importação dinâmica para evitar dependência circular
     import('./titles').then(({ checkAndAwardTitles }) => {
       checkAndAwardTitles();
     });
@@ -120,76 +206,145 @@ export const addGold = (amount) => {
   return playerData.gold;
 };
 
-export const spendGold = (amount) => {
-  const playerData = getPlayerData();
+export const spendGold = async (amount) => {
+  const playerData = await getPlayerData();
   if ((playerData.gold || 0) >= amount) {
     playerData.gold = playerData.gold - amount;
-    savePlayerData(playerData);
+    await savePlayerData(playerData);
     return true;
   }
   return false;
 };
 
-export const setGold = (amount) => {
-  const playerData = getPlayerData();
+export const setGold = async (amount) => {
+  const playerData = await getPlayerData();
   playerData.gold = Math.max(0, amount);
-  savePlayerData(playerData);
+  await savePlayerData(playerData);
   return playerData.gold;
 };
 
-// Funções para gerenciar categorias da loja
-export const getShopCategories = () => {
+// Shop Categories
+export const getShopCategories = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      const categories = await db.shopCategories.orderBy('order').toArray();
+      if (categories.length > 0) return categories;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.SHOP_CATEGORIES);
   if (data) {
     return JSON.parse(data);
   }
-  // Categorias padrão
   return [
     { id: 'default', name: 'Geral', order: 0 },
   ];
 };
 
-export const saveShopCategories = (categories) => {
+export const saveShopCategories = async (categories) => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      await db.shopCategories.clear();
+      if (categories.length > 0) {
+        await db.shopCategories.bulkPut(categories);
+      }
+      await addMutation('shopCategories', categories);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   localStorage.setItem(STORAGE_KEYS.SHOP_CATEGORIES, JSON.stringify(categories));
 };
 
-// Funções para gerenciar itens da loja
-export const getShopItems = () => {
+// Shop Items
+export const getShopItems = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      return await db.shopItems.toArray();
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.SHOP_ITEMS);
   return data ? JSON.parse(data) : [];
 };
 
-export const saveShopItems = (items) => {
+export const saveShopItems = async (items) => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      await db.shopItems.clear();
+      if (items.length > 0) {
+        await db.shopItems.bulkPut(items);
+      }
+      await addMutation('shopItems', items);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   localStorage.setItem(STORAGE_KEYS.SHOP_ITEMS, JSON.stringify(items));
 };
 
-// Funções para gerenciar itens comprados
-export const getPurchasedItems = () => {
+// Purchased Items
+export const getPurchasedItems = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      const items = await db.purchasedItems.toArray();
+      return items.map(item => item.itemId);
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.PURCHASED_ITEMS);
   return data ? JSON.parse(data) : [];
 };
 
-export const addPurchasedItem = (itemId) => {
-  const purchased = getPurchasedItems();
+export const addPurchasedItem = async (itemId) => {
+  await initStorage();
+  const purchased = await getPurchasedItems();
   if (!purchased.includes(itemId)) {
     purchased.push(itemId);
+    if (useIndexedDB) {
+      try {
+        await db.purchasedItems.put({ itemId });
+        await addMutation('purchasedItem', { itemId });
+        return;
+      } catch (error) {
+        console.warn('IndexedDB error, falling back to localStorage:', error);
+      }
+    }
     localStorage.setItem(STORAGE_KEYS.PURCHASED_ITEMS, JSON.stringify(purchased));
   }
 };
 
-export const isItemPurchased = (itemId) => {
-  const purchased = getPurchasedItems();
+export const isItemPurchased = async (itemId) => {
+  const purchased = await getPurchasedItems();
   return purchased.includes(itemId);
 };
 
-// Funções para gerenciar histórico de compras
-export const getPurchaseHistory = () => {
+// Purchase History
+export const getPurchaseHistory = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      return await db.purchaseHistory.orderBy('timestamp').reverse().toArray();
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.PURCHASE_HISTORY);
   return data ? JSON.parse(data) : [];
 };
 
-export const addPurchaseToHistory = (item, purchaseData = {}) => {
-  const history = getPurchaseHistory();
+export const addPurchaseToHistory = async (item, purchaseData = {}) => {
+  await initStorage();
   const purchase = {
     id: Date.now(),
     itemId: item.id,
@@ -199,8 +354,25 @@ export const addPurchaseToHistory = (item, purchaseData = {}) => {
     timestamp: new Date().toISOString(),
     ...purchaseData,
   };
+  
+  if (useIndexedDB) {
+    try {
+      await db.purchaseHistory.add(purchase);
+      // Keep only last 1000
+      const count = await db.purchaseHistory.count();
+      if (count > 1000) {
+        const toDelete = await db.purchaseHistory.orderBy('timestamp').limit(count - 1000).toArray();
+        await db.purchaseHistory.bulkDelete(toDelete.map(p => p.id));
+      }
+      await addMutation('purchaseHistory', purchase);
+      return purchase;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
+  
+  const history = await getPurchaseHistory();
   history.unshift(purchase);
-  // Manter apenas as últimas 1000 compras
   if (history.length > 1000) {
     history.splice(1000);
   }
@@ -208,12 +380,29 @@ export const addPurchaseToHistory = (item, purchaseData = {}) => {
   return purchase;
 };
 
-// Funções para gerenciar estado de tarefas progressivas
-export const getProgressiveTasks = () => {
+// Progressive Tasks
+export const getProgressiveTasks = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      const tasks = await db.progressiveTasks.toArray();
+      const result = {};
+      tasks.forEach(task => {
+        result[task.taskId] = {
+          startedAt: typeof task.startedAt === 'string' ? new Date(task.startedAt).getTime() : task.startedAt,
+          pausedAt: task.pausedAt ? (typeof task.pausedAt === 'string' ? new Date(task.pausedAt).getTime() : task.pausedAt) : null,
+          totalElapsed: task.totalElapsed || 0,
+          paused: task.paused || false,
+        };
+      });
+      return result;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.PROGRESSIVE_TASKS);
   if (data) {
     const parsed = JSON.parse(data);
-    // Converter timestamps de string para número se necessário
     const result = {};
     Object.keys(parsed).forEach(taskId => {
       const taskState = parsed[taskId];
@@ -230,50 +419,109 @@ export const getProgressiveTasks = () => {
   return {};
 };
 
-export const saveProgressiveTasks = (progressiveTasks) => {
+export const saveProgressiveTasks = async (progressiveTasks) => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      await db.progressiveTasks.clear();
+      const entries = Object.entries(progressiveTasks).map(([taskId, value]) => ({ taskId, ...value }));
+      if (entries.length > 0) {
+        await db.progressiveTasks.bulkPut(entries);
+      }
+      await addMutation('progressiveTasks', progressiveTasks);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   localStorage.setItem(STORAGE_KEYS.PROGRESSIVE_TASKS, JSON.stringify(progressiveTasks));
 };
 
-// Funções para gerenciar estado de tarefas por tempo
-export const getTimeTasks = () => {
+// Time Tasks
+export const getTimeTasks = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      const tasks = await db.timeTasks.toArray();
+      const result = {};
+      tasks.forEach(task => {
+        result[task.taskId] = task;
+        delete result[task.taskId].taskId;
+      });
+      return result;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.TIME_TASKS);
   return data ? JSON.parse(data) : {};
 };
 
-export const saveTimeTasks = (timeTasks) => {
+export const saveTimeTasks = async (timeTasks) => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      await db.timeTasks.clear();
+      const entries = Object.entries(timeTasks).map(([taskId, value]) => ({ taskId, ...value }));
+      if (entries.length > 0) {
+        await db.timeTasks.bulkPut(entries);
+      }
+      await addMutation('timeTasks', timeTasks);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   localStorage.setItem(STORAGE_KEYS.TIME_TASKS, JSON.stringify(timeTasks));
 };
 
-// Funções para gerenciar tarefas concluídas
-export const getCompletedTasks = () => {
+// Completed Tasks
+export const getCompletedTasks = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      const tasks = await db.completedTasks.toArray();
+      return tasks.map(t => String(t.taskId));
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.COMPLETED_TASKS);
   if (data) {
     const parsed = JSON.parse(data);
-    // Normalizar todos os IDs para string para manter consistência
     return parsed.map(id => String(id));
   }
   return [];
 };
 
-export const saveCompletedTasks = (completedTasks) => {
+export const saveCompletedTasks = async (completedTasks) => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      await db.completedTasks.clear();
+      if (completedTasks.length > 0) {
+        await db.completedTasks.bulkPut(completedTasks.map(taskId => ({ taskId: String(taskId) })));
+      }
+      await addMutation('completedTasks', completedTasks);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   localStorage.setItem(STORAGE_KEYS.COMPLETED_TASKS, JSON.stringify(completedTasks));
 };
 
-export const addCompletedTask = (taskId) => {
-  const completedTasks = getCompletedTasks();
-  // Normalizar para string para manter consistência
+export const addCompletedTask = async (taskId) => {
+  const completedTasks = await getCompletedTasks();
   const taskIdStr = String(taskId);
-  // Verificar se já existe (comparando como string)
   const exists = completedTasks.some(id => String(id) === taskIdStr);
   if (!exists) {
     completedTasks.push(taskIdStr);
-    saveCompletedTasks(completedTasks);
+    await saveCompletedTasks(completedTasks);
     
     console.log(`✅ Tarefa ${taskIdStr} marcada como concluída`);
     console.log(`📋 Tarefas concluídas agora:`, completedTasks);
     
-    // Verificar e conceder títulos após concluir tarefa
-    // Usar setTimeout para garantir que o localStorage foi atualizado
     setTimeout(() => {
       import('./titles').then(({ checkAndAwardTitles }) => {
         console.log('🔍 Chamando checkAndAwardTitles...');
@@ -284,51 +532,91 @@ export const addCompletedTask = (taskId) => {
       }).catch(err => {
         console.error('❌ Erro ao verificar títulos:', err);
       });
-    }, 100); // Aumentar para 100ms para garantir que o localStorage foi atualizado
+    }, 100);
   } else {
     console.log(`⚠️ Tarefa ${taskIdStr} já estava concluída`);
   }
 };
 
-export const removeCompletedTask = (taskId) => {
-  const completedTasks = getCompletedTasks();
+export const removeCompletedTask = async (taskId) => {
+  const completedTasks = await getCompletedTasks();
   const taskIdStr = String(taskId);
   const filtered = completedTasks.filter(id => String(id) !== taskIdStr);
-  saveCompletedTasks(filtered);
+  await saveCompletedTasks(filtered);
 };
 
-// Funções para gerenciar títulos
-export const getTitles = () => {
+// Titles
+export const getTitles = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      return await db.titles.toArray();
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.TITLES);
   return data ? JSON.parse(data) : [];
 };
 
-export const saveTitles = (titles) => {
+export const saveTitles = async (titles) => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      await db.titles.clear();
+      if (titles.length > 0) {
+        await db.titles.bulkPut(titles);
+      }
+      await addMutation('titles', titles);
+      return;
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   localStorage.setItem(STORAGE_KEYS.TITLES, JSON.stringify(titles));
 };
 
-// Funções para gerenciar títulos ganhos
-export const getEarnedTitles = () => {
+// Earned Titles
+export const getEarnedTitles = async () => {
+  await initStorage();
+  if (useIndexedDB) {
+    try {
+      const titles = await db.earnedTitles.toArray();
+      return titles.map(t => t.titleId);
+    } catch (error) {
+      console.warn('IndexedDB error, falling back to localStorage:', error);
+    }
+  }
   const data = localStorage.getItem(STORAGE_KEYS.EARNED_TITLES);
   return data ? JSON.parse(data) : [];
 };
 
-export const addEarnedTitle = (titleId) => {
-  const earned = getEarnedTitles();
+export const addEarnedTitle = async (titleId) => {
+  await initStorage();
+  const earned = await getEarnedTitles();
   if (!earned.includes(titleId)) {
     earned.push(titleId);
+    if (useIndexedDB) {
+      try {
+        await db.earnedTitles.put({ titleId });
+        await addMutation('earnedTitle', { titleId });
+        return true;
+      } catch (error) {
+        console.warn('IndexedDB error, falling back to localStorage:', error);
+      }
+    }
     localStorage.setItem(STORAGE_KEYS.EARNED_TITLES, JSON.stringify(earned));
-    return true; // Novo título ganho
+    return true;
   }
-  return false; // Título já possuído
+  return false;
 };
 
-export const hasEarnedTitle = (titleId) => {
-  const earned = getEarnedTitles();
+export const hasEarnedTitle = async (titleId) => {
+  const earned = await getEarnedTitles();
   return earned.includes(titleId);
 };
 
-// Funções para gerenciar título selecionado
+// Selected Title
 export const getSelectedTitle = () => {
   const data = localStorage.getItem(STORAGE_KEYS.SELECTED_TITLE);
   return data || null;
@@ -341,4 +629,3 @@ export const setSelectedTitle = (titleId) => {
     localStorage.setItem(STORAGE_KEYS.SELECTED_TITLE, titleId);
   }
 };
-

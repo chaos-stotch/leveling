@@ -7,18 +7,29 @@ const LAST_RESTORE_KEY = 'leveling_last_restore';
 // Obter configuração do Supabase
 export const getSupabaseConfig = () => {
   const config = localStorage.getItem(SUPABASE_CONFIG_KEY);
-  return config ? JSON.parse(config) : null;
+  if (!config) return null;
+  const parsed = JSON.parse(config);
+  // Default to disabled if not explicitly enabled
+  if (parsed.enabled === undefined) {
+    parsed.enabled = false;
+  }
+  return parsed;
 };
 
 // Salvar configuração do Supabase
 export const saveSupabaseConfig = (config) => {
-  localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify(config));
+  // Ensure enabled flag exists
+  const configToSave = {
+    ...config,
+    enabled: config.enabled !== undefined ? config.enabled : false,
+  };
+  localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify(configToSave));
 };
 
 // Criar cliente Supabase
 export const getSupabaseClient = () => {
   const config = getSupabaseConfig();
-  if (!config || !config.url || !config.anonKey) {
+  if (!config || !config.enabled || !config.url || !config.anonKey) {
     return null;
   }
   return createClient(config.url, config.anonKey);
@@ -47,49 +58,102 @@ export const setLastRestore = () => {
 };
 
 // Obter todos os dados locais para sincronização
-export const getAllLocalData = () => {
+export const getAllLocalData = async () => {
+  // Import storage functions dynamically to avoid circular dependency
+  const storage = await import('./storage.js');
+  
+  const playerData = await storage.getPlayerData();
+  const tasks = await storage.getTasks();
+  const notifications = await storage.getNotifications();
+  const shopItems = await storage.getShopItems();
+  const shopCategories = await storage.getShopCategories();
+  const purchasedItems = await storage.getPurchasedItems();
+  const purchaseHistory = await storage.getPurchaseHistory();
+  const completedTasks = await storage.getCompletedTasks();
+  const titles = await storage.getTitles();
+  const earnedTitles = await storage.getEarnedTitles();
+  
   return {
-    player_data: localStorage.getItem('leveling_player_data'),
-    tasks: localStorage.getItem('leveling_tasks'),
-    notifications: localStorage.getItem('leveling_notifications'),
+    player_data: JSON.stringify(playerData),
+    tasks: JSON.stringify(tasks),
+    notifications: JSON.stringify(notifications),
     blocked: localStorage.getItem('leveling_blocked'),
     theme: localStorage.getItem('leveling_theme'),
-    shop_items: localStorage.getItem('leveling_shop_items'),
-    shop_categories: localStorage.getItem('leveling_shop_categories'),
-    purchased_items: localStorage.getItem('leveling_purchased_items'),
-    purchase_history: localStorage.getItem('leveling_purchase_history'),
-    completed_tasks: localStorage.getItem('leveling_completed_tasks'),
-    titles: localStorage.getItem('leveling_titles'),
-    earned_titles: localStorage.getItem('leveling_earned_titles'),
+    shop_items: JSON.stringify(shopItems),
+    shop_categories: JSON.stringify(shopCategories),
+    purchased_items: JSON.stringify(purchasedItems),
+    purchase_history: JSON.stringify(purchaseHistory),
+    completed_tasks: JSON.stringify(completedTasks),
+    titles: JSON.stringify(titles),
+    earned_titles: JSON.stringify(earnedTitles),
     selected_title: localStorage.getItem('leveling_selected_title'),
   };
 };
 
 // Salvar todos os dados locais
-export const saveAllLocalData = (data) => {
-  if (data.player_data) localStorage.setItem('leveling_player_data', data.player_data);
-  if (data.tasks) localStorage.setItem('leveling_tasks', data.tasks);
-  if (data.notifications) localStorage.setItem('leveling_notifications', data.notifications);
+export const saveAllLocalData = async (data) => {
+  const storage = await import('./storage.js');
+  
+  if (data.player_data) {
+    await storage.savePlayerData(JSON.parse(data.player_data));
+  }
+  if (data.tasks) {
+    await storage.saveTasks(JSON.parse(data.tasks));
+  }
+  if (data.notifications) {
+    const notifications = JSON.parse(data.notifications);
+    for (const notif of notifications) {
+      await storage.saveNotification(notif);
+    }
+  }
   if (data.blocked) localStorage.setItem('leveling_blocked', data.blocked);
   if (data.theme) localStorage.setItem('leveling_theme', data.theme);
-  if (data.shop_items) localStorage.setItem('leveling_shop_items', data.shop_items);
-  if (data.shop_categories) localStorage.setItem('leveling_shop_categories', data.shop_categories);
-  if (data.purchased_items) localStorage.setItem('leveling_purchased_items', data.purchased_items);
-  if (data.purchase_history) localStorage.setItem('leveling_purchase_history', data.purchase_history);
-  if (data.completed_tasks) localStorage.setItem('leveling_completed_tasks', data.completed_tasks);
-  if (data.titles) localStorage.setItem('leveling_titles', data.titles);
-  if (data.earned_titles) localStorage.setItem('leveling_earned_titles', data.earned_titles);
+  if (data.shop_items) {
+    await storage.saveShopItems(JSON.parse(data.shop_items));
+  }
+  if (data.shop_categories) {
+    await storage.saveShopCategories(JSON.parse(data.shop_categories));
+  }
+  if (data.purchased_items) {
+    const items = JSON.parse(data.purchased_items);
+    for (const itemId of items) {
+      await storage.addPurchasedItem(itemId);
+    }
+  }
+  if (data.purchase_history) {
+    const history = JSON.parse(data.purchase_history);
+    for (const purchase of history) {
+      await storage.addPurchaseToHistory(purchase, purchase);
+    }
+  }
+  if (data.completed_tasks) {
+    await storage.saveCompletedTasks(JSON.parse(data.completed_tasks));
+  }
+  if (data.titles) {
+    await storage.saveTitles(JSON.parse(data.titles));
+  }
+  if (data.earned_titles) {
+    const titles = JSON.parse(data.earned_titles);
+    for (const titleId of titles) {
+      await storage.addEarnedTitle(titleId);
+    }
+  }
   if (data.selected_title) localStorage.setItem('leveling_selected_title', data.selected_title);
 };
 
 // Salvar progresso na nuvem
 export const saveProgressToCloud = async (userId) => {
+  const config = getSupabaseConfig();
+  if (!config || !config.enabled) {
+    throw new Error('Supabase não está habilitado. Configure e habilite o Supabase primeiro.');
+  }
+  
   const supabase = getSupabaseClient();
   if (!supabase) {
-    throw new Error('Supabase não configurado');
+    throw new Error('Supabase não configurado corretamente');
   }
 
-  const localData = getAllLocalData();
+  const localData = await getAllLocalData();
   const lastSave = getLastSave();
 
   const { data, error } = await supabase
@@ -115,9 +179,14 @@ export const saveProgressToCloud = async (userId) => {
 
 // Carregar progresso da nuvem
 export const loadProgressFromCloud = async (userId) => {
+  const config = getSupabaseConfig();
+  if (!config || !config.enabled) {
+    throw new Error('Supabase não está habilitado. Configure e habilite o Supabase primeiro.');
+  }
+  
   const supabase = getSupabaseClient();
   if (!supabase) {
-    throw new Error('Supabase não configurado');
+    throw new Error('Supabase não configurado corretamente');
   }
 
   const { data, error } = await supabase
@@ -135,7 +204,7 @@ export const loadProgressFromCloud = async (userId) => {
   }
 
   if (data && data.save_data) {
-    saveAllLocalData(data.save_data);
+    await saveAllLocalData(data.save_data);
     setLastRestore();
     return {
       ...data,

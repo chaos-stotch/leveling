@@ -1,4 +1,4 @@
-import { getPlayerData, savePlayerData, getXPForNextLevel, getSkillXPForNextLevel, saveNotification } from './storage';
+import { getPlayerData, savePlayerData, getXPForNextLevel, getSkillXPForNextLevel, saveNotification } from './storage-compat';
 import { checkAndAwardTitles } from './titles';
 
 // Adicionar XP e verificar level up

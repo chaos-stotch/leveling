@@ -26,7 +26,7 @@ import {
   addPurchaseToHistory,
   getPurchaseHistory,
   getCompletedTasks,
-} from '../utils/storage';
+} from '../utils/storage-compat';
 import { useSound } from '../hooks/useSound';
 
 const Shop = () => {
@@ -56,11 +56,13 @@ const Shop = () => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 1000);
+    const interval = setInterval(() => {
+      loadData();
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
     const items = getShopItems();
     const cats = getShopCategories();
     const player = getPlayerData();
@@ -81,7 +83,8 @@ const Shop = () => {
     setPlayerData(player);
     setPurchasedItems(purchased);
     setCompletedTasks(completed);
-    setPurchaseHistory(getPurchaseHistory());
+    const history = await getPurchaseHistory();
+    setPurchaseHistory(history || []);
     if (allTasks.length > 0) {
       setTasks(allTasks);
     }

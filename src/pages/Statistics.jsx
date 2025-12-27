@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Paper, LinearProgress, Grid, useTheme, Dialog, DialogTitle, DialogContent, DialogActions, Button, Chip, IconButton } from '@mui/material';
-import { FitnessCenter, Favorite, Speed, Psychology, Whatshot, Star, Close, EmojiEvents } from '@mui/icons-material';
+import { FitnessCenter, Favorite, Speed, Psychology, Whatshot, Star, Close, EmojiEvents, Apps } from '@mui/icons-material';
 import { motion } from 'framer-motion';
+import { Capacitor } from '@capacitor/core';
 import { 
   getPlayerData, 
   getXPForNextLevel, 
@@ -10,8 +11,9 @@ import {
   getEarnedTitles,
   getSelectedTitle,
   setSelectedTitle,
-} from '../utils/storage';
+} from '../utils/storage-compat';
 import { checkAndAwardTitles } from '../utils/titles';
+import { openAppSettings } from '../utils/settings';
 
 const Statistics = () => {
   const theme = useTheme();
@@ -284,6 +286,69 @@ const Statistics = () => {
             </Typography>
           </Box>
         </Paper>
+
+        {/* Botão para abrir configurações do Android */}
+        {Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android' && (
+          <Paper
+            component={motion.div}
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={async () => {
+              try {
+                await openAppSettings();
+              } catch (error) {
+                console.error('Erro ao abrir configurações:', error);
+                alert('Não foi possível abrir as configurações. Por favor, abra manualmente em Configurações > Apps.');
+              }
+            }}
+            sx={{
+              cursor: 'pointer',
+              mb: 4,
+              backgroundColor: 'background.paper',
+              border: `2px solid ${primaryColor}80`,
+              boxShadow: `0 0 20px ${primaryColor}33`,
+              p: 2,
+              textAlign: 'center',
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: `linear-gradient(135deg, ${primaryColor}1A 0%, ${primaryColor}0D 100%)`,
+                zIndex: 0,
+              },
+            }}
+          >
+            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+              <Apps sx={{ color: primaryColor, fontSize: 28 }} />
+              <Typography
+                variant="h6"
+                sx={{
+                  color: textPrimary,
+                  fontWeight: 600,
+                  textShadow: textShadow,
+                }}
+              >
+                Ver Todos os Apps
+              </Typography>
+            </Box>
+            <Typography
+              variant="caption"
+              sx={{
+                color: textSecondary,
+                fontSize: '0.75rem',
+                mt: 1,
+                display: 'block',
+              }}
+            >
+              Abre as configurações do Android
+            </Typography>
+          </Paper>
+        )}
       </motion.div>
 
       {/* Habilidades */}

@@ -16,6 +16,12 @@ const getAudio = (soundName) => {
 // Hook personalizado para gerenciar sons
 export const useSound = () => {
   const playSound = useCallback((soundName) => {
+    // Verificar se o som está habilitado
+    const soundEnabled = localStorage.getItem('leveling_sound_enabled');
+    if (soundEnabled === 'false') {
+      return; // Som desabilitado
+    }
+    
     try {
       const audio = getAudio(soundName);
       // Resetar o áudio para permitir reprodução rápida consecutiva

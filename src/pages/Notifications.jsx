@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Paper, Chip, useTheme } from '@mui/material';
 import { EmojiEvents, TrendingUp, Refresh, ErrorOutline } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { getNotifications } from '../utils/storage';
+import { getNotifications } from '../utils/storage-compat';
 
 const Notifications = () => {
   const theme = useTheme();

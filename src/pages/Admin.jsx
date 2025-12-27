@@ -42,7 +42,7 @@ import {
   saveTitles,
   getCompletedTasks,
   removeCompletedTask,
-} from '../utils/storage';
+} from '../utils/storage-compat';
 import {
   getSupabaseConfig,
   saveSupabaseConfig,
@@ -128,6 +128,7 @@ const Admin = () => {
     url: '',
     anonKey: '',
     userId: '',
+    enabled: false,
   });
   const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
@@ -149,6 +150,10 @@ const Admin = () => {
   const [titleEditDialog, setTitleEditDialog] = useState({ open: false, title: null });
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('leveling_sound_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
 
   // Sensores para drag and drop
   const sensors = useSensors(
@@ -197,6 +202,7 @@ const Admin = () => {
         url: supabaseConfig.url || '',
         anonKey: supabaseConfig.anonKey || '',
         userId: supabaseConfig.userId || '',
+        enabled: supabaseConfig.enabled !== undefined ? supabaseConfig.enabled : false,
       });
     }
     checkForSyncConflict();
@@ -643,6 +649,7 @@ const Admin = () => {
         <Tab label="Controle da Loja" />
         <Tab label="Títulos" />
         <Tab label="Sincronização" />
+        <Tab label="Configurações" />
       </Tabs>
 
       {/* Aba: Controle de Níveis */}
@@ -2396,6 +2403,34 @@ const Admin = () => {
                   />
                 </Grid>
                 <Grid item xs={12}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={supabaseForm.enabled || false}
+                        onChange={(e) => setSupabaseForm({ ...supabaseForm, enabled: e.target.checked })}
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: primaryColor,
+                          },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            backgroundColor: primaryColor,
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography sx={{ color: textPrimary, fontWeight: 600 }}>
+                        {supabaseForm.enabled ? '✅ Sincronização Habilitada' : '❌ Sincronização Desabilitada'}
+                      </Typography>
+                    }
+                  />
+                  <Typography variant="body2" sx={{ color: textSecondary, mt: 1, ml: 4 }}>
+                    {supabaseForm.enabled 
+                      ? 'A sincronização automática está ativa e seus dados serão salvos na nuvem'
+                      : 'A sincronização está desabilitada. Configure e habilite para usar o Supabase'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                       <Button
@@ -2412,7 +2447,11 @@ const Admin = () => {
                           }
                           // Garantir que a URL termina sem barra
                           const cleanUrl = supabaseForm.url.replace(/\/$/, '');
-                          const config = { ...supabaseForm, url: cleanUrl };
+                          const config = { 
+                            ...supabaseForm, 
+                            url: cleanUrl,
+                            enabled: supabaseForm.enabled !== undefined ? supabaseForm.enabled : false
+                          };
                           saveSupabaseConfig(config);
                           setSupabaseConfig(config);
                           setSyncMessage({ type: 'success', text: 'Configuração salva com sucesso!' });
@@ -2430,7 +2469,7 @@ const Admin = () => {
                           onClick={() => {
                             localStorage.removeItem('leveling_supabase_config');
                             setSupabaseConfig(null);
-                            setSupabaseForm({ url: '', anonKey: '', userId: '' });
+                            setSupabaseForm({ url: '', anonKey: '', userId: '', enabled: false });
                             setSyncMessage({ type: 'success', text: 'Configuração removida' });
                             setTimeout(() => setSyncMessage({ type: '', text: '' }), 3000);
                           }}
@@ -2701,6 +2740,83 @@ const Admin = () => {
               </motion.div>
             </>
           )}
+        </Box>
+      )}
+
+      {/* Aba: Configurações */}
+      {adminTab === 5 && (
+        <Box>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Paper
+              sx={{
+                p: 3,
+                mb: 4,
+                backgroundColor: 'background.paper',
+                border: `2px solid ${primaryColor}80`,
+                boxShadow: `0 0 30px ${primaryColor}33`,
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 3,
+                  color: textPrimary,
+                  textShadow: titleTextShadow,
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px',
+                }}
+              >
+                Configurações Gerais
+              </Typography>
+
+              <Box sx={{ mb: 3 }}>
+                <Paper
+                  sx={{
+                    p: 2,
+                    backgroundColor: `${primaryColor}0D`,
+                    border: `1px solid ${primaryColor}4D`,
+                  }}
+                >
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={soundEnabled}
+                        onChange={(e) => {
+                          const enabled = e.target.checked;
+                          setSoundEnabled(enabled);
+                          localStorage.setItem('leveling_sound_enabled', enabled.toString());
+                          // Disparar evento para atualizar outros componentes
+                          window.dispatchEvent(new CustomEvent('soundEnabledChanged', { detail: { enabled } }));
+                        }}
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: primaryColor,
+                          },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            backgroundColor: primaryColor,
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography sx={{ color: textPrimary, fontWeight: 600 }}>
+                        {soundEnabled ? '🔊 Sons Habilitados' : '🔇 Sons Desabilitados'}
+                      </Typography>
+                    }
+                  />
+                  <Typography variant="body2" sx={{ color: textSecondary, mt: 1, ml: 4 }}>
+                    {soundEnabled 
+                      ? 'Os sons serão reproduzidos ao interagir com o aplicativo'
+                      : 'Os sons estão desabilitados e não serão reproduzidos'}
+                  </Typography>
+                </Paper>
+              </Box>
+            </Paper>
+          </motion.div>
         </Box>
       )}
 

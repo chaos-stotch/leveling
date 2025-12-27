@@ -38,11 +38,11 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { getTasks, saveTasks, getProgressiveTasks, saveProgressiveTasks, getTimeTasks, saveTimeTasks, getCompletedTasks, saveCompletedTasks, addCompletedTask, removeCompletedTask } from '../utils/storage';
+import { getTasks, saveTasks, getProgressiveTasks, saveProgressiveTasks, getTimeTasks, saveTimeTasks, getCompletedTasks, saveCompletedTasks, addCompletedTask, removeCompletedTask } from '../utils/storage-compat';
 import { useSound } from '../hooks/useSound';
 
 import { addXP } from '../utils/levelSystem';
-import { saveNotification, addGold } from '../utils/storage';
+import { saveNotification, addGold } from '../utils/storage-compat';
 
 // Função para calcular recompensas baseado em ciclos (usado tanto para progressivas quanto para ciclos manuais)
 const calculateCycleRewards = (task, cycles) => {

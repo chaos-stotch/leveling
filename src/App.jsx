@@ -14,7 +14,7 @@ import ClickSoundProvider from './components/ClickSoundProvider';
 import SyncConflictDialog from './components/SyncConflictDialog';
 import ConfirmDialog from './components/ConfirmDialog';
 import { useSound } from './hooks/useSound';
-import { isBlocked, getNotifications, getSelectedTheme } from './utils/storage';
+import { isBlocked, getNotifications, getSelectedTheme } from './utils/storage-compat';
 import { getTheme } from './themes';
 import { getSupabaseConfig, checkSyncStatus, saveProgressToCloud, loadProgressFromCloud } from './utils/supabase';
 
@@ -267,7 +267,7 @@ function App() {
   }
 
   const pages = [
-    { component: <Statistics />, label: 'Estatísticas', icon: <BarChart /> },
+    { component: <Statistics />, label: 'Home', icon: <BarChart /> },
     { component: <Tasks />, label: 'Tarefas', icon: <Assignment /> },
     { component: <Shop />, label: 'Loja', icon: <ShoppingCart /> },
     { component: <NotificationsPage />, label: 'Notificações', icon: <Notifications /> },

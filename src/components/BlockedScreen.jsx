@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Box, Typography, TextField, Button, Paper, useTheme } from '@mui/material';
 import { ErrorOutline } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { setBlocked } from '../utils/storage';
+import { setBlocked } from '../utils/storage-compat';
 
 const BlockedScreen = ({ onUnblock }) => {
   const theme = useTheme();

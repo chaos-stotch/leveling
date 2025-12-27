@@ -5,7 +5,7 @@ import {
   getPlayerData, 
   getCompletedTasks,
   saveNotification 
-} from './storage';
+} from './storage-compat';
 
 // Verificar e conceder títulos baseado nas condições
 export const checkAndAwardTitles = () => {
