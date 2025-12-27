@@ -269,10 +269,24 @@ export const addCompletedTask = (taskId) => {
     completedTasks.push(taskIdStr);
     saveCompletedTasks(completedTasks);
     
+    console.log(`✅ Tarefa ${taskIdStr} marcada como concluída`);
+    console.log(`📋 Tarefas concluídas agora:`, completedTasks);
+    
     // Verificar e conceder títulos após concluir tarefa
-    import('./titles').then(({ checkAndAwardTitles }) => {
-      checkAndAwardTitles();
-    });
+    // Usar setTimeout para garantir que o localStorage foi atualizado
+    setTimeout(() => {
+      import('./titles').then(({ checkAndAwardTitles }) => {
+        console.log('🔍 Chamando checkAndAwardTitles...');
+        const newTitles = checkAndAwardTitles();
+        if (newTitles.length > 0) {
+          console.log(`🎉 ${newTitles.length} novo(s) título(s) ganho(s)!`);
+        }
+      }).catch(err => {
+        console.error('❌ Erro ao verificar títulos:', err);
+      });
+    }, 100); // Aumentar para 100ms para garantir que o localStorage foi atualizado
+  } else {
+    console.log(`⚠️ Tarefa ${taskIdStr} já estava concluída`);
   }
 };
 

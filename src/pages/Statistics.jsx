@@ -33,18 +33,77 @@ const Statistics = () => {
   
   // Verificar e conceder títulos quando necessário
   useEffect(() => {
-    checkAndAwardTitles();
-    setEarnedTitles(getEarnedTitles());
-    setTitles(getTitles());
+    console.log('📊 Statistics: Verificando títulos (nível/ouro mudou)');
+    const allTitles = getTitles();
+    const allEarnedTitles = getEarnedTitles();
+    
+    // Limpar títulos deletados da lista de ganhos
+    const validEarnedTitles = allEarnedTitles.filter(earnedId => {
+      const titleIdStr = String(earnedId);
+      const exists = allTitles.some(t => String(t.id) === titleIdStr);
+      if (!exists) {
+        console.warn(`🧹 Título deletado encontrado na lista de ganhos: ${titleIdStr}`);
+      }
+      return exists;
+    });
+    
+    // Se algum título foi removido, atualizar o localStorage
+    if (validEarnedTitles.length !== allEarnedTitles.length) {
+      console.log(`🧹 Limpando ${allEarnedTitles.length - validEarnedTitles.length} título(s) deletado(s) da lista de ganhos`);
+      localStorage.setItem('leveling_earned_titles', JSON.stringify(validEarnedTitles));
+    }
+    
+    const newTitles = checkAndAwardTitles();
+    if (newTitles.length > 0) {
+      console.log(`🎉 Statistics: ${newTitles.length} novo(s) título(s) ganho(s)!`);
+      // Se novos títulos foram ganhos, atualizar o estado
+      setEarnedTitles(getEarnedTitles());
+      setTitles(getTitles());
+    } else {
+      setEarnedTitles(validEarnedTitles);
+      setTitles(allTitles);
+    }
     setSelectedTitleIdState(getSelectedTitle());
+    
+    // Log para debug
+    console.log('📋 Títulos disponíveis:', allTitles.map(t => ({ id: String(t.id), name: t.name })));
+    console.log('✅ Títulos ganhos (IDs):', validEarnedTitles);
+    console.log('✅ Títulos ganhos (detalhes):', validEarnedTitles.map(id => {
+      const title = allTitles.find(t => String(t.id) === String(id));
+      return title ? { id: String(id), name: title.name } : { id: String(id), name: 'NÃO ENCONTRADO' };
+    }));
   }, [playerData.level, playerData.gold]);
   
-  const selectedTitle = selectedTitleId ? titles.find(t => t.id === selectedTitleId) : null;
+  // Verificar títulos quando a página é carregada ou quando tarefas são concluídas
+  useEffect(() => {
+    const handleTaskCompleted = () => {
+      console.log('📊 Statistics: Evento taskCompleted recebido!');
+      const newTitles = checkAndAwardTitles();
+      if (newTitles.length > 0) {
+        console.log(`🎉 Statistics: ${newTitles.length} novo(s) título(s) ganho(s) via evento!`);
+        setEarnedTitles(getEarnedTitles());
+        setTitles(getTitles());
+      } else {
+        console.log('⚠️ Statistics: Nenhum novo título ganho');
+      }
+    };
+    
+    console.log('👂 Statistics: Registrando listener para taskCompleted');
+    window.addEventListener('taskCompleted', handleTaskCompleted);
+    return () => {
+      console.log('🔇 Statistics: Removendo listener para taskCompleted');
+      window.removeEventListener('taskCompleted', handleTaskCompleted);
+    };
+  }, []);
+  
+  const selectedTitle = selectedTitleId ? titles.find(t => String(t.id) === String(selectedTitleId)) : null;
   const displayTitle = selectedTitle ? selectedTitle.name : 'Sem Título';
   
   const handleSelectTitle = (titleId) => {
-    setSelectedTitle(titleId);
-    setSelectedTitleIdState(titleId);
+    // Normalizar para string para manter consistência
+    const normalizedId = titleId ? String(titleId) : null;
+    setSelectedTitle(normalizedId);
+    setSelectedTitleIdState(normalizedId);
     // Forçar atualização do componente
     window.dispatchEvent(new CustomEvent('titleChanged'));
   };
@@ -429,9 +488,14 @@ const Statistics = () => {
               </Paper>
               
               {earnedTitles.map((titleId) => {
-                const title = titles.find(t => t.id === titleId);
-                if (!title) return null;
-                const isSelected = selectedTitleId === titleId;
+                // Normalizar comparação de IDs (pode ser string ou número)
+                const titleIdStr = String(titleId);
+                const title = titles.find(t => String(t.id) === titleIdStr);
+                if (!title) {
+                  console.warn(`⚠️ Título com ID ${titleIdStr} não encontrado na lista de títulos. Pode ter sido deletado.`);
+                  return null;
+                }
+                const isSelected = String(selectedTitleId) === titleIdStr;
                 
                 return (
                   <Paper

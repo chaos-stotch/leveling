@@ -897,7 +897,15 @@ const Tasks = ({ onTaskComplete }) => {
 
   const loadCompletedTasks = () => {
     const completed = getCompletedTasks();
-    setCompletedTasks(completed);
+    // Garantir que todos os IDs estão normalizados como string
+    const normalized = completed.map(id => String(id));
+    setCompletedTasks(normalized);
+  };
+  
+  // Função auxiliar para verificar se uma tarefa está concluída (normalizando IDs)
+  const isTaskCompleted = (taskId) => {
+    const taskIdStr = String(taskId);
+    return completedTasks.some(id => String(id) === taskIdStr);
   };
 
   // Funções para drag and drop
@@ -985,7 +993,11 @@ const Tasks = ({ onTaskComplete }) => {
 
             // Marcar tarefa como concluída permanentemente
             addCompletedTask(task.id);
-            setCompletedTasks(prev => [...prev, task.id]);
+            const taskIdStr = String(task.id);
+            setCompletedTasks(prev => {
+              const exists = prev.some(id => String(id) === taskIdStr);
+              return exists ? prev : [...prev, taskIdStr];
+            });
 
             // Resetar estado da tarefa (remover startedAt)
             const updatedTasks = allTasks.map((t) =>
@@ -998,6 +1010,9 @@ const Tasks = ({ onTaskComplete }) => {
             if (focusedTask && focusedTask.id === task.id) {
               setFocusedTask(null);
             }
+
+            // Disparar evento para verificar títulos
+            window.dispatchEvent(new CustomEvent('taskCompleted'));
 
             if (onTaskComplete) onTaskComplete();
             needsUpdate = true;
@@ -1216,7 +1231,14 @@ const Tasks = ({ onTaskComplete }) => {
       
       // Marcar como concluída
       addCompletedTask(task.id);
-      setCompletedTasks(prev => [...prev, task.id]);
+      const taskIdStr = String(task.id);
+      setCompletedTasks(prev => {
+        const exists = prev.some(id => String(id) === taskIdStr);
+        return exists ? prev : [...prev, taskIdStr];
+      });
+      
+      // Disparar evento para verificar títulos
+      window.dispatchEvent(new CustomEvent('taskCompleted'));
     }
     
     // Resetar estado da tarefa
@@ -1293,7 +1315,11 @@ const Tasks = ({ onTaskComplete }) => {
 
       // Marcar tarefa como concluída permanentemente
       addCompletedTask(task.id);
-      setCompletedTasks(prev => [...prev, task.id]);
+      const taskIdStr = String(task.id);
+      setCompletedTasks(prev => {
+        const exists = prev.some(id => String(id) === taskIdStr);
+        return exists ? prev : [...prev, taskIdStr];
+      });
 
       // Resetar estado da tarefa (remover startedAt se for tarefa por tempo)
       if (task.type === 'time') {
@@ -1313,6 +1339,10 @@ const Tasks = ({ onTaskComplete }) => {
 
       setConfirmDialog({ open: false, task: null });
       setConfirmText('');
+      
+      // Disparar evento para verificar títulos
+      window.dispatchEvent(new CustomEvent('taskCompleted'));
+      
       if (onTaskComplete) onTaskComplete();
     }
   };
@@ -1452,10 +1482,10 @@ const Tasks = ({ onTaskComplete }) => {
                           onCompleteClick={handleCompleteClick}
                           onStartTimeTask={startTimeTask}
                           onFocusClick={handleFocusClick}
-                          isCompleted={completedTasks.includes(task.id)}
-                          isStarted={task.startedAt && !completedTasks.includes(task.id)}
+                          isCompleted={isTaskCompleted(task.id)}
+                          isStarted={task.startedAt && !isTaskCompleted(task.id)}
                           remaining={activeTimers[task.id] || 0}
-                          progress={(task.startedAt && !completedTasks.includes(task.id))
+                          progress={(task.startedAt && !isTaskCompleted(task.id))
                             ? ((task.duration * 1000 - (activeTimers[task.id] || 0)) / (task.duration * 1000)) * 100
                             : 0}
                           formatTime={formatTime}
@@ -1483,7 +1513,7 @@ const Tasks = ({ onTaskComplete }) => {
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
                     onFocusClick={() => {}}
-                    isCompleted={completedTasks.includes(activeId)}
+                    isCompleted={isTaskCompleted(activeId)}
                     isStarted={false}
                     remaining={0}
                     progress={0}
@@ -1539,10 +1569,10 @@ const Tasks = ({ onTaskComplete }) => {
                           onCompleteClick={handleCompleteClick}
                           onStartTimeTask={startTimeTask}
                           onFocusClick={handleFocusClick}
-                          isCompleted={completedTasks.includes(task.id)}
-                          isStarted={task.startedAt && !completedTasks.includes(task.id)}
+                          isCompleted={isTaskCompleted(task.id)}
+                          isStarted={task.startedAt && !isTaskCompleted(task.id)}
                           remaining={activeTimers[task.id] || 0}
-                          progress={(task.startedAt && !completedTasks.includes(task.id))
+                          progress={(task.startedAt && !isTaskCompleted(task.id))
                             ? ((task.duration * 1000 - (activeTimers[task.id] || 0)) / (task.duration * 1000)) * 100
                             : 0}
                           formatTime={formatTime}
@@ -1570,7 +1600,7 @@ const Tasks = ({ onTaskComplete }) => {
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
                     onFocusClick={() => {}}
-                    isCompleted={completedTasks.includes(activeId)}
+                    isCompleted={isTaskCompleted(activeId)}
                     isStarted={false}
                     remaining={0}
                     progress={0}
@@ -1626,7 +1656,7 @@ const Tasks = ({ onTaskComplete }) => {
                           onCompleteClick={handleCompleteClick}
                           onStartTimeTask={startTimeTask}
                           onFocusClick={handleFocusClick}
-                          isCompleted={completedTasks.includes(task.id)}
+                          isCompleted={isTaskCompleted(task.id)}
                           isStarted={progressiveTasks[task.id] && !progressiveTasks[task.id].paused}
                           remaining={0}
                           progress={0}
@@ -1680,7 +1710,7 @@ const Tasks = ({ onTaskComplete }) => {
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
                     onFocusClick={() => {}}
-                    isCompleted={completedTasks.includes(activeId)}
+                    isCompleted={isTaskCompleted(activeId)}
                     isStarted={false}
                     remaining={0}
                     progress={0}
@@ -1736,7 +1766,7 @@ const Tasks = ({ onTaskComplete }) => {
                           onCompleteClick={handleCompleteClick}
                           onStartTimeTask={startTimeTask}
                           onFocusClick={handleFocusClick}
-                          isCompleted={completedTasks.includes(task.id)}
+                          isCompleted={isTaskCompleted(task.id)}
                           isStarted={false}
                           remaining={0}
                           progress={0}
@@ -1765,7 +1795,7 @@ const Tasks = ({ onTaskComplete }) => {
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
                     onFocusClick={() => {}}
-                    isCompleted={completedTasks.includes(activeId)}
+                    isCompleted={isTaskCompleted(activeId)}
                     isStarted={false}
                     remaining={0}
                     progress={0}
@@ -1862,17 +1892,17 @@ const Tasks = ({ onTaskComplete }) => {
                   sx={{
                     p: 6,
                     backgroundColor: 'background.paper',
-                    border: completedTasks.includes(focusedTask.id)
+                    border: isTaskCompleted(focusedTask.id)
                       ? `2px solid ${theme.palette.secondary.main}80`
                       : `2px solid ${primaryColor}80`,
-                    boxShadow: completedTasks.includes(focusedTask.id)
+                    boxShadow: isTaskCompleted(focusedTask.id)
                       ? `0 0 40px ${theme.palette.secondary.main}33`
                       : `0 0 40px ${primaryColor}33`,
                     borderRadius: 4,
                   }}
                 >
                   <Box sx={{ mb: 4, textAlign: 'center' }}>
-                    {completedTasks.includes(focusedTask.id) && (
+                    {isTaskCompleted(focusedTask.id) && (
                       <CheckCircle
                         sx={{
                           color: theme.palette.secondary.main,
@@ -1885,10 +1915,10 @@ const Tasks = ({ onTaskComplete }) => {
                     <Typography
                       variant="h3"
                       sx={{
-                        color: completedTasks.includes(focusedTask.id)
+                        color: isTaskCompleted(focusedTask.id)
                           ? theme.palette.secondary.main
                           : textPrimary,
-                        textShadow: completedTasks.includes(focusedTask.id)
+                        textShadow: isTaskCompleted(focusedTask.id)
                           ? `0 0 20px ${theme.palette.secondary.main}`
                           : textShadow,
                         fontWeight: 700,
@@ -2080,7 +2110,7 @@ const Tasks = ({ onTaskComplete }) => {
 
                   {focusedTask.type === 'time' &&
                     focusedTask.startedAt &&
-                    !completedTasks.includes(focusedTask.id) && (
+                    !isTaskCompleted(focusedTask.id) && (
                       <Box sx={{ mb: 4, textAlign: 'center' }}>
                         <motion.div
                           initial={{ scale: 0.8, opacity: 0 }}
@@ -2125,7 +2155,7 @@ const Tasks = ({ onTaskComplete }) => {
 
                   {focusedTask.type === 'progressive' &&
                     progressiveTasks[focusedTask.id] &&
-                    !completedTasks.includes(focusedTask.id) && (
+                    !isTaskCompleted(focusedTask.id) && (
                       <Box sx={{ mb: 4, textAlign: 'center' }}>
                         <motion.div
                           initial={{ scale: 0.8, opacity: 0 }}
@@ -2195,7 +2225,7 @@ const Tasks = ({ onTaskComplete }) => {
                     )}
 
                   {focusedTask.type === 'cycle' &&
-                    !completedTasks.includes(focusedTask.id) && (
+                    !isTaskCompleted(focusedTask.id) && (
                       <Box sx={{ mb: 4, textAlign: 'center' }}>
                         <motion.div
                           initial={{ scale: 0.8, opacity: 0 }}
@@ -2249,7 +2279,7 @@ const Tasks = ({ onTaskComplete }) => {
                       </Box>
                     )}
 
-                  {!completedTasks.includes(focusedTask.id) && (
+                  {!isTaskCompleted(focusedTask.id) && (
                     <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
                       {focusedTask.type === 'cycle' ? (
                         <>
@@ -2434,7 +2464,7 @@ const Tasks = ({ onTaskComplete }) => {
                         </>
                       ) : focusedTask.type === 'time' ? (
                         <>
-                          {!focusedTask.startedAt || completedTasks.includes(focusedTask.id) ? (
+                          {!focusedTask.startedAt || isTaskCompleted(focusedTask.id) ? (
                             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                               <Button
                                 variant="outlined"
