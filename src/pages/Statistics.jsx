@@ -189,19 +189,6 @@ const Statistics = () => {
             >
               {displayTitle}
             </Typography>
-            {selectedTitle && selectedTitle.description && (
-              <Typography
-                variant="caption"
-                sx={{
-                  color: textSecondary,
-                  fontSize: '0.7rem',
-                  mt: 0.5,
-                  display: 'block',
-                }}
-              >
-                {selectedTitle.description}
-              </Typography>
-            )}
           </Box>
         </Paper>
       </motion.div>
