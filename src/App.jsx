@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { BottomNavigation, BottomNavigationAction, Box } from '@mui/material';
 import { BarChart, Assignment, Notifications, Settings, ShoppingCart } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Statistics from './pages/Statistics';
 import Tasks from './pages/Tasks';
 import NotificationsPage from './pages/Notifications';
@@ -274,32 +274,6 @@ function App() {
     { component: <Admin />, label: 'Admin', icon: <Settings /> },
   ];
 
-  const pageVariants = {
-    initial: {
-      opacity: 0,
-      x: 20,
-      scale: 0.98,
-    },
-    animate: {
-      opacity: 1,
-      x: 0,
-      scale: 1,
-      transition: {
-        duration: 0.4,
-        ease: [0.22, 1, 0.36, 1], // easeOutCubic
-      },
-    },
-    exit: {
-      opacity: 0,
-      x: -20,
-      scale: 0.98,
-      transition: {
-        duration: 0.3,
-        ease: [0.22, 1, 0.36, 1],
-      },
-    },
-  };
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -331,19 +305,42 @@ function App() {
             },
           }}
         >
-          <Box sx={{ position: 'relative', zIndex: 1 }}>
-            <AnimatePresence mode="wait">
+          <Box 
+            sx={{ 
+              position: 'relative', 
+              zIndex: 1,
+              overflow: 'hidden',
+              width: '100%',
+              height: '100%',
+            }}
+          >
               <motion.div
-                key={currentPage}
-                variants={pageVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                style={{ width: '100%' }}
+              style={{
+                display: 'flex',
+                width: `${pages.length * 100}vw`,
+                height: '100%',
+              }}
+              animate={{
+                x: `-${currentPage * 100}vw`,
+              }}
+              transition={{
+                duration: 0.5,
+                ease: [0.22, 1, 0.36, 1], // easeOutCubic
+              }}
+            >
+              {pages.map((page, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    width: '100vw',
+                    flexShrink: 0,
+                    height: '100%',
+                  }}
               >
-                {pages[currentPage].component}
+                  {page.component}
+                </Box>
+              ))}
               </motion.div>
-            </AnimatePresence>
           </Box>
         </Box>
         <motion.div
