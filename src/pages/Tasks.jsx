@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -16,7 +16,7 @@ import {
   Tab,
   useTheme,
 } from '@mui/material';
-import { CheckCircle, PlayArrow, Timer, Delete, ErrorOutline, DragIndicator, Visibility, Close, Pause, Stop, Add, Remove } from '@mui/icons-material';
+import { CheckCircle, PlayArrow, Timer, Delete, ErrorOutline, DragIndicator, Visibility, Close, Pause, Stop, Add, Remove, ArrowForward, Star } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
@@ -38,7 +38,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { getTasks, saveTasks, getProgressiveTasks, saveProgressiveTasks, getTimeTasks, saveTimeTasks, getCompletedTasks, saveCompletedTasks, addCompletedTask, removeCompletedTask } from '../utils/storage-compat';
+import { getTasks, saveTasks, getProgressiveTasks, saveProgressiveTasks, getTimeTasks, saveTimeTasks, getCompletedTasks, saveCompletedTasks, addCompletedTask, removeCompletedTask, getHighlightedTask, setHighlightedTask } from '../utils/storage-compat';
 import { useSound } from '../hooks/useSound';
 
 import { addXP } from '../utils/levelSystem';
@@ -106,10 +106,264 @@ const calculateProgressiveRewards = (task, elapsedSeconds) => {
   return calculateCycleRewards(task, intervals);
 };
 
+// Componente de swipe para concluir tarefa
+const SwipeToComplete = ({ onComplete, primaryColor, secondaryColor, textPrimary }) => {
+  const [dragX, setDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const containerRef = useRef(null);
+  const startXRef = useRef(0);
+  const isDraggingRef = useRef(false);
+  const dragXRef = useRef(0);
+  const onCompleteRef = useRef(onComplete);
+  const SWIPE_THRESHOLD = 150; // Distância mínima para completar
+
+  // Atualizar ref quando onComplete mudar
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  // Atualizar dragXRef quando dragX mudar
+  useEffect(() => {
+    dragXRef.current = dragX;
+  }, [dragX]);
+
+  const handleStart = (clientX) => {
+    setIsDragging(true);
+    isDraggingRef.current = true;
+    startXRef.current = clientX;
+    setDragX(0);
+    dragXRef.current = 0;
+  };
+
+  const handleMove = (clientX) => {
+    if (!isDraggingRef.current) return;
+    const deltaX = clientX - startXRef.current;
+    if (deltaX > 0) {
+      const newDragX = Math.min(deltaX, 200);
+      setDragX(newDragX);
+      dragXRef.current = newDragX;
+    } else {
+      setDragX(0);
+      dragXRef.current = 0;
+    }
+  };
+
+  const handleEnd = () => {
+    const currentDragX = dragXRef.current;
+    setIsDragging(false);
+    isDraggingRef.current = false;
+    
+    if (currentDragX >= SWIPE_THRESHOLD && !isCompleted) {
+      setIsCompleted(true);
+      setTimeout(() => {
+        onCompleteRef.current();
+        setDragX(0);
+        dragXRef.current = 0;
+        setIsCompleted(false);
+      }, 300);
+    } else {
+      setDragX(0);
+      dragXRef.current = 0;
+    }
+  };
+
+  // Gerenciar eventos de mouse globalmente
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e) => {
+      e.preventDefault();
+      if (!isDraggingRef.current) return;
+      const deltaX = e.clientX - startXRef.current;
+      if (deltaX > 0) {
+        const newDragX = Math.min(deltaX, 200);
+        setDragX(newDragX);
+        dragXRef.current = newDragX;
+      } else {
+        setDragX(0);
+        dragXRef.current = 0;
+      }
+    };
+
+    const handleMouseUp = (e) => {
+      e.preventDefault();
+      const currentDragX = dragXRef.current;
+      setIsDragging(false);
+      isDraggingRef.current = false;
+      
+      if (currentDragX >= SWIPE_THRESHOLD && !isCompleted) {
+        setIsCompleted(true);
+        setTimeout(() => {
+          onCompleteRef.current();
+          setDragX(0);
+          dragXRef.current = 0;
+          setIsCompleted(false);
+        }, 300);
+      } else {
+        setDragX(0);
+        dragXRef.current = 0;
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove, { passive: false });
+    document.addEventListener('mouseup', handleMouseUp, { passive: false });
+    document.body.style.userSelect = 'none'; // Prevenir seleção de texto durante drag
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging, isCompleted]);
+
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleStart(e.clientX);
+  };
+
+  const handleTouchStart = (e) => {
+    handleStart(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    e.preventDefault(); // Prevenir scroll durante o swipe
+    handleMove(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    handleEnd();
+  };
+
+  const progress = Math.min(dragX / SWIPE_THRESHOLD, 1);
+  const shouldComplete = dragX >= SWIPE_THRESHOLD;
+
+  return (
+    <Box
+      ref={containerRef}
+      sx={{
+        position: 'relative',
+        width: '100%',
+        height: 56,
+        borderRadius: 2,
+        overflow: 'hidden',
+        border: `2px solid ${primaryColor}`,
+        backgroundColor: `${primaryColor}0D`,
+        cursor: isDragging ? 'grabbing' : 'grab',
+        userSelect: 'none',
+      }}
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Background que preenche conforme o swipe */}
+      <motion.div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          height: '100%',
+          width: `${progress * 100}%`,
+          backgroundColor: shouldComplete ? secondaryColor : primaryColor,
+          opacity: 0.3,
+        }}
+        animate={{
+          width: `${progress * 100}%`,
+          backgroundColor: shouldComplete ? secondaryColor : primaryColor,
+        }}
+        transition={{ duration: 0.1 }}
+      />
+      
+      {/* Conteúdo do botão */}
+      <Box
+        sx={{
+          position: 'relative',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 2,
+          zIndex: 1,
+        }}
+      >
+        <motion.div
+          animate={{
+            x: dragX,
+            scale: isDragging ? 0.95 : 1,
+          }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            flex: 1,
+          }}
+        >
+          <CheckCircle
+            sx={{
+              color: shouldComplete ? secondaryColor : primaryColor,
+              filter: shouldComplete ? `drop-shadow(0 0 10px ${secondaryColor})` : 'none',
+              transition: 'all 0.2s',
+            }}
+          />
+          <Typography
+            variant="button"
+            sx={{
+              color: shouldComplete ? secondaryColor : textPrimary,
+              textTransform: 'uppercase',
+              fontWeight: 600,
+              textShadow: shouldComplete ? `0 0 10px ${secondaryColor}` : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            {shouldComplete ? 'Soltar para concluir' : 'Deslize para concluir'}
+          </Typography>
+        </motion.div>
+        
+        <motion.div
+          animate={{
+            x: dragX,
+            opacity: shouldComplete ? 1 : 0.6,
+            scale: shouldComplete ? 1.2 : 1,
+          }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        >
+          <ArrowForward
+            sx={{
+              color: shouldComplete ? secondaryColor : primaryColor,
+              filter: shouldComplete ? `drop-shadow(0 0 10px ${secondaryColor})` : 'none',
+              transition: 'all 0.2s',
+            }}
+          />
+        </motion.div>
+      </Box>
+
+      {/* Indicador de progresso */}
+      {isDragging && (
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            height: 3,
+            width: `${progress * 100}%`,
+            backgroundColor: shouldComplete ? secondaryColor : primaryColor,
+            boxShadow: shouldComplete ? `0 0 10px ${secondaryColor}` : `0 0 5px ${primaryColor}`,
+            transition: 'all 0.1s',
+          }}
+        />
+      )}
+    </Box>
+  );
+};
+
 // Componente para item de tarefa arrastável
 const SortableTaskItem = ({
   task,
   onCompleteClick,
+  onDirectComplete,
   onStartTimeTask,
   onFocusClick,
   isCompleted,
@@ -118,6 +372,7 @@ const SortableTaskItem = ({
   progress,
   formatTime,
   skillNames,
+  skillColors,
   onPauseProgressive,
   onStopProgressive,
   onStopTimeTask,
@@ -167,15 +422,28 @@ const SortableTaskItem = ({
       whileHover={{ scale: 1.02, y: -2 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       sx={{
-        p: 2.5,
+        p: 3,
         mb: 2,
         backgroundColor: 'background.paper',
-        border: isCompleted ? `1px solid ${secondaryColor}80` : `1px solid ${primaryColor}4D`,
+        border: isCompleted ? `2px solid ${secondaryColor}` : `2px solid ${primaryColor}`,
         boxShadow: isCompleted
-          ? `0 0 20px ${secondaryColor}33`
-          : `0 0 20px ${primaryColor}1A`,
+          ? `0 0 15px ${secondaryColor}33, inset 0 0 15px ${secondaryColor}08`
+          : `0 0 15px ${primaryColor}33, inset 0 0 15px ${primaryColor}08`,
         cursor: isDragging ? 'grabbing' : 'grab',
         position: 'relative',
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: isCompleted 
+            ? `linear-gradient(135deg, ${secondaryColor}0D 0%, ${secondaryColor}05 100%)`
+            : `linear-gradient(135deg, ${primaryColor}0D 0%, ${primaryColor}05 100%)`,
+          zIndex: 0,
+        },
       }}
     >
       {/* Handle de arrastar */}
@@ -203,49 +471,78 @@ const SortableTaskItem = ({
         <DragIndicator />
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1.5, pr: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-          <Typography
-            variant="h6"
-            sx={{
-              flex: 1,
-              color: isCompleted ? secondaryColor : textPrimary,
-              textShadow: isCompleted ? `0 0 10px ${secondaryColor}` : textShadow,
-              fontWeight: 600,
-            }}
-          >
-            -{task.title.toUpperCase()}
-          </Typography>
-          {!isCompleted && (
-            <IconButton
-              onClick={(e) => {
-                e.stopPropagation();
-                onFocusClick(task);
-              }}
-              size="small"
+      <Box sx={{ position: 'relative', zIndex: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1.5, pr: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+            <Typography
+              variant="h5"
               sx={{
-                color: textSecondary,
-                opacity: 0.7,
-                '&:hover': {
-                  color: primaryColor,
-                  opacity: 1,
-                  backgroundColor: `${primaryColor}1A`,
-                  boxShadow: `0 0 10px ${primaryColor}80`,
-                },
+                flex: 1,
+                color: isCompleted ? secondaryColor : textPrimary,
+                textShadow: isCompleted ? `0 0 10px ${secondaryColor}` : textShadow,
+                fontWeight: 'bold',
               }}
             >
-              <Visibility />
-            </IconButton>
+              {task.title}
+            </Typography>
+          {!isCompleted && (
+            <>
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const currentHighlighted = getHighlightedTask();
+                  if (currentHighlighted === String(task.id)) {
+                    setHighlightedTask(null);
+                  } else {
+                    setHighlightedTask(task.id);
+                  }
+                  window.dispatchEvent(new CustomEvent('highlightedTaskChanged'));
+                }}
+                size="small"
+                sx={{
+                  color: getHighlightedTask() === String(task.id) ? '#FFD700' : textSecondary,
+                  opacity: getHighlightedTask() === String(task.id) ? 1 : 0.7,
+                  filter: getHighlightedTask() === String(task.id) ? 'drop-shadow(0 0 5px #FFD700)' : 'none',
+                  '&:hover': {
+                    color: '#FFD700',
+                    opacity: 1,
+                    backgroundColor: '#FFD7001A',
+                    boxShadow: `0 0 10px #FFD70080`,
+                  },
+                }}
+              >
+                <Star />
+              </IconButton>
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFocusClick(task);
+                }}
+                size="small"
+                sx={{
+                  color: textSecondary,
+                  opacity: 0.7,
+                  '&:hover': {
+                    color: primaryColor,
+                    opacity: 1,
+                    backgroundColor: `${primaryColor}1A`,
+                    boxShadow: `0 0 10px ${primaryColor}80`,
+                  },
+                }}
+              >
+                <Visibility />
+              </IconButton>
+            </>
+          )}
+          </Box>
+          {isCompleted && (
+            <CheckCircle sx={{ color: secondaryColor, filter: `drop-shadow(0 0 5px ${secondaryColor})` }} />
           )}
         </Box>
-        {isCompleted && (
-          <CheckCircle sx={{ color: secondaryColor, filter: `drop-shadow(0 0 5px ${secondaryColor})` }} />
-        )}
-      </Box>
-      <Typography variant="body2" sx={{ mb: 2, color: textSecondary, lineHeight: 1.6 }}>
-        {task.description}
-      </Typography>
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+        <Typography variant="body1" sx={{ mb: 2, color: textSecondary, lineHeight: 1.6 }}>
+          {task.description}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2, mt: 2 }}>
         {(isProgressiveTask || isCycleTask) ? (
           <>
             {(() => {
@@ -262,8 +559,8 @@ const SortableTaskItem = ({
                       size="small"
                       sx={{
                         backgroundColor: `${primaryColor}33`,
-                        color: textPrimary,
-                        border: `1px solid ${primaryColor}80`,
+                        color: primaryColor,
+                        fontWeight: 600,
                       }}
                     />
                     {baseGold > 0 && (
@@ -273,7 +570,7 @@ const SortableTaskItem = ({
                         sx={{
                           backgroundColor: '#FFD70033',
                           color: '#FFD700',
-                          border: '1px solid #FFD70080',
+                          fontWeight: 600,
                         }}
                       />
                     )}
@@ -287,8 +584,8 @@ const SortableTaskItem = ({
                       size="small"
                       sx={{
                         backgroundColor: `${primaryColor}33`,
-                        color: textPrimary,
-                        border: `1px solid ${primaryColor}80`,
+                        color: primaryColor,
+                        fontWeight: 600,
                       }}
                     />
                     {baseGold > 0 && (
@@ -298,7 +595,7 @@ const SortableTaskItem = ({
                         sx={{
                           backgroundColor: '#FFD70033',
                           color: '#FFD700',
-                          border: '1px solid #FFD70080',
+                          fontWeight: 600,
                         }}
                       />
                     )}
@@ -314,8 +611,8 @@ const SortableTaskItem = ({
               size="small"
               sx={{
                 backgroundColor: `${primaryColor}33`,
-                color: textPrimary,
-                border: `1px solid ${primaryColor}80`,
+                color: primaryColor,
+                fontWeight: 600,
               }}
             />
             {task.gold > 0 && (
@@ -325,7 +622,7 @@ const SortableTaskItem = ({
                 sx={{
                   backgroundColor: '#FFD70033',
                   color: '#FFD700',
-                  border: '1px solid #FFD70080',
+                  fontWeight: 600,
                 }}
               />
             )}
@@ -337,18 +634,26 @@ const SortableTaskItem = ({
             ? (Array.isArray(task.skills) ? task.skills : [task.skills])
             : (task.skill ? [task.skill] : []);
 
-          return skills.map((skill) => (
-            <Chip
-              key={skill}
-              label={skillNames[skill]}
-              size="small"
-              sx={{
-                backgroundColor: `${primaryColor}1A`,
-                color: textSecondary,
-                border: `1px solid ${primaryColor}4D`,
-              }}
-            />
-          ));
+          return skills.map((skill) => {
+            const skillColor = skillColors[skill] || primaryColor;
+            return (
+              <Chip
+                key={skill}
+                label={skillNames[skill]}
+                size="small"
+                sx={{
+                  backgroundColor: `${skillColor}33`,
+                  color: skillColor,
+                  fontWeight: 600,
+                  fontSize: '0.7rem',
+                  height: 20,
+                  '& .MuiChip-label': {
+                    padding: '0 6px',
+                  },
+                }}
+              />
+            );
+          });
         })()}
         {isTimeTask && (
           <Chip
@@ -356,9 +661,9 @@ const SortableTaskItem = ({
             label={`${task.duration}s`}
             size="small"
             sx={{
-              backgroundColor: `${primaryColor}1A`,
-              color: textSecondary,
-              border: `1px solid ${primaryColor}4D`,
+              backgroundColor: `${primaryColor}33`,
+              color: primaryColor,
+              fontWeight: 600,
             }}
           />
         )}
@@ -368,9 +673,9 @@ const SortableTaskItem = ({
             label={`${Math.floor((task.intervalSeconds || 300) / 60)}min/intervalo`}
             size="small"
             sx={{
-              backgroundColor: `${primaryColor}1A`,
-              color: textSecondary,
-              border: `1px solid ${primaryColor}4D`,
+              backgroundColor: `${primaryColor}33`,
+              color: primaryColor,
+              fontWeight: 600,
             }}
           />
         )}
@@ -380,13 +685,13 @@ const SortableTaskItem = ({
             label="Ciclos Manuais"
             size="small"
             sx={{
-              backgroundColor: `${primaryColor}1A`,
-              color: textSecondary,
-              border: `1px solid ${primaryColor}4D`,
+              backgroundColor: `${primaryColor}33`,
+              color: primaryColor,
+              fontWeight: 600,
             }}
           />
         )}
-      </Box>
+        </Box>
       {isTimeTask && isStarted && (
         <Box sx={{ mb: 2 }}>
           <Typography variant="body2" sx={{ mb: 1, color: textPrimary, fontWeight: 600 }}>
@@ -673,31 +978,22 @@ const SortableTaskItem = ({
               )}
             </>
           ) : (
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                variant="outlined"
-                startIcon={<CheckCircle />}
-                onClick={() => onCompleteClick(task)}
-                fullWidth
-                sx={{
-                  borderColor: primaryColor,
-                  color: textPrimary,
-                  borderWidth: '2px',
-                  textTransform: 'uppercase',
-                  fontWeight: 600,
-                  '&:hover': {
-                    borderColor: primaryColor,
-                    backgroundColor: `${primaryColor}1A`,
-                    boxShadow: `0 0 20px ${primaryColor}80`,
-                  },
-                }}
-              >
-                Concluir Tarefa
-              </Button>
-            </motion.div>
+            <SwipeToComplete
+              onComplete={() => {
+                if (onDirectComplete) {
+                  onDirectComplete(task);
+                } else {
+                  onCompleteClick(task);
+                }
+              }}
+              primaryColor={primaryColor}
+              secondaryColor={secondaryColor}
+              textPrimary={textPrimary}
+            />
           )}
         </Box>
       )}
+      </Box>
     </Paper>
   );
 };
@@ -749,6 +1045,23 @@ const Tasks = ({ onTaskComplete }) => {
     loadProgressiveTasks();
     loadTimeTasks();
     loadCycleTasks();
+  }, []);
+
+  // Escutar mudanças nas tarefas (quando são criadas, atualizadas, deletadas ou reativadas/desativadas)
+  useEffect(() => {
+    const handleTasksUpdate = () => {
+      // Recarregar tarefas e tarefas concluídas quando há qualquer mudança
+      loadTasks();
+      loadCompletedTasks();
+    };
+
+    window.addEventListener('tasksUpdated', handleTasksUpdate);
+    // Manter compatibilidade com evento antigo
+    window.addEventListener('taskStatusChanged', handleTasksUpdate);
+    return () => {
+      window.removeEventListener('tasksUpdated', handleTasksUpdate);
+      window.removeEventListener('taskStatusChanged', handleTasksUpdate);
+    };
   }, []);
 
   const loadCycleTasks = () => {
@@ -1050,6 +1363,81 @@ const Tasks = ({ onTaskComplete }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Detectar quando a página perde/ganha foco e atualizar tempo das tarefas progressivas
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Página perdeu o foco, salvar estado atual imediatamente
+        setProgressiveTasks(prev => {
+          const updated = { ...prev };
+          let changed = false;
+          const now = Date.now();
+          
+          Object.keys(updated).forEach(taskId => {
+            const taskState = updated[taskId];
+            if (taskState && !taskState.paused && taskState.startedAt) {
+              // Calcular tempo decorrido desde que começou e atualizar totalElapsed
+              const startedAt = typeof taskState.startedAt === 'number' 
+                ? taskState.startedAt 
+                : new Date(taskState.startedAt).getTime();
+              const elapsed = Math.max(0, now - startedAt);
+              
+              // Atualizar totalElapsed e salvar lastSaved (não resetar startedAt ainda)
+              updated[taskId] = {
+                ...taskState,
+                totalElapsed: (taskState.totalElapsed || 0) + elapsed,
+                lastSaved: now,
+              };
+              changed = true;
+            }
+          });
+          
+          if (changed) {
+            saveProgressiveTasks(updated);
+          }
+          return changed ? updated : prev;
+        });
+      } else {
+        // Página voltou ao foco, recalcular tempo decorrido desde o último save
+        setProgressiveTasks(prev => {
+          const updated = { ...prev };
+          let changed = false;
+          const now = Date.now();
+          
+          Object.keys(updated).forEach(taskId => {
+            const taskState = updated[taskId];
+            if (taskState && !taskState.paused && taskState.startedAt) {
+              // Calcular tempo decorrido desde o último save
+              const lastSaved = taskState.lastSaved || (typeof taskState.startedAt === 'number' 
+                ? taskState.startedAt 
+                : new Date(taskState.startedAt).getTime());
+              const elapsedSinceSave = Math.max(0, now - lastSaved);
+              
+              // Atualizar totalElapsed e resetar startedAt para agora
+              updated[taskId] = {
+                ...taskState,
+                startedAt: now,
+                totalElapsed: (taskState.totalElapsed || 0) + elapsedSinceSave,
+                lastSaved: now,
+              };
+              changed = true;
+            }
+          });
+          
+          if (changed) {
+            saveProgressiveTasks(updated);
+          }
+          return changed ? updated : prev;
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
 
   const startTimeTask = (task) => {
     if (task.type === 'progressive') {
@@ -1272,6 +1660,51 @@ const Tasks = ({ onTaskComplete }) => {
     setConfirmText('');
   };
 
+  const handleDirectComplete = (task) => {
+    // Completa a tarefa diretamente sem diálogo de confirmação
+    const skills = task.skills
+      ? (Array.isArray(task.skills) ? task.skills : [task.skills])
+      : (task.skill ? [task.skill] : null);
+    addXP(task.xp, skills, playSound);
+    
+    // Adicionar ouro se a tarefa tiver ouro definido
+    if (task.gold && task.gold > 0) {
+      addGold(task.gold);
+    }
+
+    // Tocar som de power down
+    playSound('power-down');
+
+    // Marcar tarefa como concluída permanentemente
+    addCompletedTask(task.id);
+    const taskIdStr = String(task.id);
+    setCompletedTasks(prev => {
+      const exists = prev.some(id => String(id) === taskIdStr);
+      return exists ? prev : [...prev, taskIdStr];
+    });
+
+    // Resetar estado da tarefa (remover startedAt se for tarefa por tempo)
+    if (task.type === 'time') {
+      const allTasks = getTasks();
+      const updatedTasks = allTasks.map((t) =>
+        t.id === task.id ? { ...t, startedAt: null } : t
+      );
+      saveTasks(updatedTasks);
+      setTasks(updatedTasks);
+      // Limpar timer ativo se existir
+      if (activeTimers[task.id]) {
+        const newTimers = { ...activeTimers };
+        delete newTimers[task.id];
+        setActiveTimers(newTimers);
+      }
+    }
+
+    // Disparar evento para verificar títulos
+    window.dispatchEvent(new CustomEvent('taskCompleted'));
+    
+    if (onTaskComplete) onTaskComplete();
+  };
+
   const handleFocusClick = (task) => {
     // Atualizar tarefa com estado atual se for progressiva ou por tempo
     if (task.type === 'progressive' && progressiveTasks[task.id]) {
@@ -1369,6 +1802,14 @@ const Tasks = ({ onTaskComplete }) => {
     agility: 'Agilidade',
     intelligence: 'Inteligência',
     persistence: 'Persistência',
+  };
+
+  const skillColors = {
+    strength: '#FF6B6B',
+    vitality: '#FF6B6B',
+    agility: '#4ECDC4',
+    intelligence: '#95E1D3',
+    persistence: '#FFD93D',
   };
 
 
@@ -1480,6 +1921,7 @@ const Tasks = ({ onTaskComplete }) => {
                         <SortableTaskItem
                           task={task}
                           onCompleteClick={handleCompleteClick}
+                          onDirectComplete={handleDirectComplete}
                           onStartTimeTask={startTimeTask}
                           onFocusClick={handleFocusClick}
                           isCompleted={isTaskCompleted(task.id)}
@@ -1490,6 +1932,7 @@ const Tasks = ({ onTaskComplete }) => {
                             : 0}
                           formatTime={formatTime}
                           skillNames={skillNames}
+                          skillColors={skillColors}
                           onPauseProgressive={pauseProgressiveTask}
                           onStopProgressive={stopProgressiveTask}
                           onStopTimeTask={stopTimeTask}
@@ -1577,6 +2020,7 @@ const Tasks = ({ onTaskComplete }) => {
                             : 0}
                           formatTime={formatTime}
                           skillNames={skillNames}
+                          skillColors={skillColors}
                           onPauseProgressive={pauseProgressiveTask}
                           onStopProgressive={stopProgressiveTask}
                           onStopTimeTask={stopTimeTask}
@@ -1662,6 +2106,7 @@ const Tasks = ({ onTaskComplete }) => {
                           progress={0}
                           formatTime={formatTime}
                           skillNames={skillNames}
+                          skillColors={skillColors}
                           onPauseProgressive={pauseProgressiveTask}
                           onStopProgressive={stopProgressiveTask}
                           onStopTimeTask={stopTimeTask}
@@ -1772,6 +2217,7 @@ const Tasks = ({ onTaskComplete }) => {
                           progress={0}
                           formatTime={formatTime}
                           skillNames={skillNames}
+                          skillColors={skillColors}
                           onPauseProgressive={() => {}}
                           onStopProgressive={() => {}}
                           onStopTimeTask={() => {}}

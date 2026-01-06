@@ -385,6 +385,8 @@ const Admin = () => {
     const updatedTasks = [...tasks, newTask];
     saveTasks(updatedTasks);
     setTasks(updatedTasks);
+    // Disparar evento para notificar outros componentes
+    window.dispatchEvent(new CustomEvent('tasksUpdated'));
     resetForm();
   };
 
@@ -426,6 +428,9 @@ const Admin = () => {
     if (isChangingActiveStatus) {
       removeCompletedTask(editDialog.task.id);
     }
+    
+    // Disparar evento para notificar outros componentes
+    window.dispatchEvent(new CustomEvent('tasksUpdated'));
 
     setEditDialog({ open: false, task: null });
     resetForm();
@@ -436,6 +441,9 @@ const Admin = () => {
       const updatedTasks = tasks.filter((t) => t.id !== taskId);
       saveTasks(updatedTasks);
       setTasks(updatedTasks);
+      
+      // Disparar evento para notificar outros componentes
+      window.dispatchEvent(new CustomEvent('tasksUpdated'));
       
       // Remover tarefa excluída dos requisitos de itens da loja
       const updatedShopItems = shopItems.map(item => {
@@ -517,6 +525,8 @@ const Admin = () => {
     });
     saveTasks(updatedTasks);
     setTasks(updatedTasks);
+    // Disparar evento para notificar outros componentes
+    window.dispatchEvent(new CustomEvent('tasksUpdated'));
   };
 
   const handleThemeChange = (themeId) => {

@@ -11,6 +11,8 @@ import {
   getEarnedTitles,
   getSelectedTitle,
   setSelectedTitle,
+  getTasks,
+  getHighlightedTask,
 } from '../utils/storage-compat';
 import { checkAndAwardTitles } from '../utils/titles';
 import { openAppSettings } from '../utils/settings';
@@ -25,6 +27,7 @@ const Statistics = () => {
   const [selectedTitleId, setSelectedTitleIdState] = useState(getSelectedTitle());
   const [earnedTitles, setEarnedTitles] = useState(getEarnedTitles());
   const [titles, setTitles] = useState(getTitles());
+  const [highlightedTask, setHighlightedTask] = useState(null);
   
   const primaryColor = theme.palette.primary.main;
   const textPrimary = theme.palette.text.primary;
@@ -95,6 +98,32 @@ const Statistics = () => {
     return () => {
       console.log('🔇 Statistics: Removendo listener para taskCompleted');
       window.removeEventListener('taskCompleted', handleTaskCompleted);
+    };
+  }, []);
+
+  // Carregar tarefa destacada
+  useEffect(() => {
+    const loadHighlightedTask = () => {
+      const highlightedTaskId = getHighlightedTask();
+      if (highlightedTaskId) {
+        const allTasks = getTasks();
+        const task = allTasks.find(t => String(t.id) === String(highlightedTaskId));
+        setHighlightedTask(task || null);
+      } else {
+        setHighlightedTask(null);
+      }
+    };
+    
+    loadHighlightedTask();
+    
+    // Escutar mudanças na tarefa destacada
+    const handleHighlightedTaskChange = () => {
+      loadHighlightedTask();
+    };
+    
+    window.addEventListener('highlightedTaskChanged', handleHighlightedTaskChange);
+    return () => {
+      window.removeEventListener('highlightedTaskChanged', handleHighlightedTaskChange);
     };
   }, []);
   
@@ -337,6 +366,126 @@ const Statistics = () => {
           </Paper>
         )}
       </motion.div>
+
+      {/* Tarefa Destacada */}
+      {highlightedTask && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <Paper
+            component={motion.div}
+            whileHover={{ scale: 1.02, y: -2 }}
+            transition={{ duration: 0.2 }}
+            sx={{
+              p: 3,
+              mb: 4,
+              backgroundColor: 'background.paper',
+              border: `2px solid ${primaryColor}`,
+              boxShadow: `0 0 15px ${primaryColor}33, inset 0 0 15px ${primaryColor}08`,
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: `linear-gradient(135deg, ${primaryColor}1A 0%, ${primaryColor}0D 100%)`,
+                zIndex: 0,
+              },
+            }}
+          >
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Star sx={{ color: '#FFD700', fontSize: 28, filter: 'drop-shadow(0 0 5px #FFD700)' }} />
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 'bold',
+                    color: textPrimary,
+                    textShadow: textShadow,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                  }}
+                >
+                  Tarefa em Destaque
+                </Typography>
+              </Box>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 'bold',
+                  color: textPrimary,
+                  textShadow: textShadow,
+                  mb: 1,
+                }}
+              >
+                {highlightedTask.title}
+              </Typography>
+              {highlightedTask.description && (
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: textSecondary,
+                    mb: 2,
+                  }}
+                >
+                  {highlightedTask.description}
+                </Typography>
+              )}
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+                {highlightedTask.xp && (
+                  <Chip
+                    label={`${highlightedTask.xp} XP`}
+                    size="small"
+                    sx={{
+                      backgroundColor: `${primaryColor}33`,
+                      color: primaryColor,
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
+                {highlightedTask.gold && (
+                  <Chip
+                    label={`${highlightedTask.gold} 🪙`}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#FFD70033',
+                      color: '#FFD700',
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
+                {highlightedTask.skills && highlightedTask.skills.length > 0 && (
+                  highlightedTask.skills.map((skill) => {
+                    const skillInfo = skills.find(s => s.key === skill);
+                    return skillInfo ? (
+                      <Chip
+                        key={skill}
+                        label={skillInfo.name}
+                        size="small"
+                        sx={{
+                          backgroundColor: `${skillInfo.color}33`,
+                          color: skillInfo.color,
+                          fontWeight: 600,
+                          fontSize: '0.7rem',
+                          height: 20,
+                          '& .MuiChip-label': {
+                            padding: '0 6px',
+                          },
+                        }}
+                      />
+                    ) : null;
+                  })
+                )}
+              </Box>
+            </Box>
+          </Paper>
+        </motion.div>
+      )}
 
       {/* Habilidades */}
       <motion.div

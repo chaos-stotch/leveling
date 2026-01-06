@@ -7,8 +7,40 @@ import { initCaches } from './utils/storage-compat.js'
 import { startAutoSync, isSyncEnabled } from './utils/sync.js'
 import { getSupabaseConfig } from './utils/supabase.js'
 
+// Wait for DOM and stylesheets to load to prevent FOUC
+const waitForReady = () => {
+  return new Promise((resolve) => {
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      // Small delay to ensure stylesheets are applied
+      setTimeout(resolve, 0);
+      return;
+    }
+    
+    const checkReady = () => {
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(resolve, 0);
+      } else {
+        setTimeout(checkReady, 10);
+      }
+    };
+    
+    if (document.addEventListener) {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(resolve, 0), { once: true });
+      window.addEventListener('load', () => setTimeout(resolve, 0), { once: true });
+    } else {
+      checkReady();
+    }
+    
+    // Fallback timeout
+    setTimeout(resolve, 100);
+  });
+};
+
 // Boot-safe loading pipeline
 const initApp = async () => {
+  // 0. Wait for DOM and stylesheets to prevent FOUC
+  await waitForReady();
+
   // 1. Initialize IndexedDB and migrate from localStorage
   try {
     await initStorage();

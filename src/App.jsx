@@ -281,7 +281,7 @@ function App() {
         <Box 
           sx={{ 
             pb: 7, // Espaço para o BottomNavigation
-            minHeight: '100vh', 
+            height: '100vh', 
             backgroundColor: 'background.default', 
             position: 'relative', 
             overflow: 'hidden',
@@ -335,6 +335,8 @@ function App() {
                     width: '100vw',
                     flexShrink: 0,
                     height: '100%',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
                   }}
               >
                   {page.component}

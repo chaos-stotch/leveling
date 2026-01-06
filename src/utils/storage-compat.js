@@ -201,3 +201,6 @@ export const hasEarnedTitle = async (titleId) => {
 export const getSelectedTitle = storage.getSelectedTitle;
 export const setSelectedTitle = storage.setSelectedTitle;
 
+export const getHighlightedTask = storage.getHighlightedTask;
+export const setHighlightedTask = storage.setHighlightedTask;
+

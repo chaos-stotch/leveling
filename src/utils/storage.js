@@ -1,5 +1,5 @@
 // Sistema de armazenamento local com IndexedDB e localStorage fallback
-import db, { migrateFromLocalStorage } from './db.js';
+import db, { migrateFromLocalStorage, handleVersionError, isIndexedDBAvailable } from './db.js';
 import { addMutation } from './db.js';
 
 const STORAGE_KEYS = {
@@ -18,10 +18,11 @@ const STORAGE_KEYS = {
   EARNED_TITLES: 'leveling_earned_titles',
   SELECTED_TITLE: 'leveling_selected_title',
   COMPLETED_TASKS: 'leveling_completed_tasks',
+  HIGHLIGHTED_TASK: 'leveling_highlighted_task',
 };
 
 // Helper to use IndexedDB with localStorage fallback
-const useIndexedDB = typeof indexedDB !== 'undefined';
+const useIndexedDB = () => isIndexedDBAvailable();
 
 // Initialize migration on first load
 let migrationPromise = null;
@@ -32,32 +33,51 @@ export const initStorage = async () => {
   return migrationPromise;
 };
 
+// Helper function to check if error is a version error
+const isVersionError = (error) => {
+  return error.name === 'VersionError' || 
+         error.message?.includes('higher version') || 
+         error.message?.includes('VersionError') ||
+         (error.inner && (error.inner.name === 'VersionError' || error.inner.message?.includes('VersionError')));
+};
+
+// Helper function to safely execute IndexedDB operations
+const safeDBOp = async (operation, fallback = null) => {
+  if (!useIndexedDB()) {
+    if (fallback) return fallback();
+    throw new Error('IndexedDB is not available');
+  }
+
+  try {
+    return await operation();
+  } catch (error) {
+    // Check if it's a version error
+    if (isVersionError(error)) {
+      const fixed = await handleVersionError();
+      if (fixed) {
+        // Retry the operation after fixing
+        try {
+          return await operation();
+        } catch (retryError) {
+          console.warn('IndexedDB error after fix:', retryError);
+          if (fallback) return fallback();
+          throw retryError;
+        }
+      }
+    }
+    // For other errors, use fallback if available
+    if (fallback) {
+      console.warn('IndexedDB error, using fallback:', error);
+      return fallback();
+    }
+    throw error;
+  }
+};
+
 // Player Data
 export const getPlayerData = async () => {
   await initStorage();
-  if (useIndexedDB) {
-    try {
-      const record = await db.playerData.get('player');
-      if (record && record.value) {
-        const parsed = record.value;
-        if (parsed.gold === undefined) {
-          parsed.gold = 0;
-        }
-        return parsed;
-      }
-    } catch (error) {
-      console.warn('IndexedDB error, falling back to localStorage:', error);
-    }
-  }
-  const data = localStorage.getItem(STORAGE_KEYS.PLAYER_DATA);
-  if (data) {
-    const parsed = JSON.parse(data);
-    if (parsed.gold === undefined) {
-      parsed.gold = 0;
-    }
-    return parsed;
-  }
-  return {
+  const defaultData = {
     level: 1,
     xp: 0,
     gold: 0,
@@ -69,26 +89,58 @@ export const getPlayerData = async () => {
       persistence: { level: 1, xp: 0 },
     },
   };
+
+  const record = await safeDBOp(
+    async () => await db.playerData.get('player'),
+    () => {
+      const data = localStorage.getItem(STORAGE_KEYS.PLAYER_DATA);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed.gold === undefined) {
+          parsed.gold = 0;
+        }
+        return parsed;
+      }
+      return defaultData;
+    }
+  );
+
+  if (record && record.value) {
+    const parsed = record.value;
+    if (parsed.gold === undefined) {
+      parsed.gold = 0;
+    }
+    return parsed;
+  }
+
+  const data = localStorage.getItem(STORAGE_KEYS.PLAYER_DATA);
+  if (data) {
+    const parsed = JSON.parse(data);
+    if (parsed.gold === undefined) {
+      parsed.gold = 0;
+    }
+    return parsed;
+  }
+  return defaultData;
 };
 
 export const savePlayerData = async (data) => {
   await initStorage();
-  if (useIndexedDB) {
-    try {
+  await safeDBOp(
+    async () => {
       await db.playerData.put({ key: 'player', value: data });
       await addMutation('playerData', data);
-      return;
-    } catch (error) {
-      console.warn('IndexedDB error, falling back to localStorage:', error);
+    },
+    () => {
+      localStorage.setItem(STORAGE_KEYS.PLAYER_DATA, JSON.stringify(data));
     }
-  }
-  localStorage.setItem(STORAGE_KEYS.PLAYER_DATA, JSON.stringify(data));
+  );
 };
 
 // Tasks
 export const getTasks = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       return await db.tasks.toArray();
     } catch (error) {
@@ -101,7 +153,7 @@ export const getTasks = async () => {
 
 export const saveTasks = async (tasks) => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.tasks.clear();
       if (tasks.length > 0) {
@@ -119,7 +171,7 @@ export const saveTasks = async (tasks) => {
 // Notifications
 export const getNotifications = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       return await db.notifications.orderBy('timestamp').reverse().toArray();
     } catch (error) {
@@ -138,7 +190,7 @@ export const saveNotification = async (notification) => {
     timestamp: new Date().toISOString(),
   };
   
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.notifications.add(newNotification);
       // Keep only last 100
@@ -226,7 +278,7 @@ export const setGold = async (amount) => {
 // Shop Categories
 export const getShopCategories = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       const categories = await db.shopCategories.orderBy('order').toArray();
       if (categories.length > 0) return categories;
@@ -245,7 +297,7 @@ export const getShopCategories = async () => {
 
 export const saveShopCategories = async (categories) => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.shopCategories.clear();
       if (categories.length > 0) {
@@ -263,7 +315,7 @@ export const saveShopCategories = async (categories) => {
 // Shop Items
 export const getShopItems = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       return await db.shopItems.toArray();
     } catch (error) {
@@ -276,7 +328,7 @@ export const getShopItems = async () => {
 
 export const saveShopItems = async (items) => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.shopItems.clear();
       if (items.length > 0) {
@@ -294,16 +346,17 @@ export const saveShopItems = async (items) => {
 // Purchased Items
 export const getPurchasedItems = async () => {
   await initStorage();
-  if (useIndexedDB) {
-    try {
+  const items = await safeDBOp(
+    async () => {
       const items = await db.purchasedItems.toArray();
       return items.map(item => item.itemId);
-    } catch (error) {
-      console.warn('IndexedDB error, falling back to localStorage:', error);
+    },
+    () => {
+      const data = localStorage.getItem(STORAGE_KEYS.PURCHASED_ITEMS);
+      return data ? JSON.parse(data) : [];
     }
-  }
-  const data = localStorage.getItem(STORAGE_KEYS.PURCHASED_ITEMS);
-  return data ? JSON.parse(data) : [];
+  );
+  return items;
 };
 
 export const addPurchasedItem = async (itemId) => {
@@ -311,7 +364,7 @@ export const addPurchasedItem = async (itemId) => {
   const purchased = await getPurchasedItems();
   if (!purchased.includes(itemId)) {
     purchased.push(itemId);
-    if (useIndexedDB) {
+    if (useIndexedDB()) {
       try {
         await db.purchasedItems.put({ itemId });
         await addMutation('purchasedItem', { itemId });
@@ -332,7 +385,7 @@ export const isItemPurchased = async (itemId) => {
 // Purchase History
 export const getPurchaseHistory = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       return await db.purchaseHistory.orderBy('timestamp').reverse().toArray();
     } catch (error) {
@@ -355,7 +408,7 @@ export const addPurchaseToHistory = async (item, purchaseData = {}) => {
     ...purchaseData,
   };
   
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.purchaseHistory.add(purchase);
       // Keep only last 1000
@@ -383,7 +436,7 @@ export const addPurchaseToHistory = async (item, purchaseData = {}) => {
 // Progressive Tasks
 export const getProgressiveTasks = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       const tasks = await db.progressiveTasks.toArray();
       const result = {};
@@ -421,7 +474,7 @@ export const getProgressiveTasks = async () => {
 
 export const saveProgressiveTasks = async (progressiveTasks) => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.progressiveTasks.clear();
       const entries = Object.entries(progressiveTasks).map(([taskId, value]) => ({ taskId, ...value }));
@@ -440,7 +493,7 @@ export const saveProgressiveTasks = async (progressiveTasks) => {
 // Time Tasks
 export const getTimeTasks = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       const tasks = await db.timeTasks.toArray();
       const result = {};
@@ -459,7 +512,7 @@ export const getTimeTasks = async () => {
 
 export const saveTimeTasks = async (timeTasks) => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.timeTasks.clear();
       const entries = Object.entries(timeTasks).map(([taskId, value]) => ({ taskId, ...value }));
@@ -478,7 +531,7 @@ export const saveTimeTasks = async (timeTasks) => {
 // Completed Tasks
 export const getCompletedTasks = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       const tasks = await db.completedTasks.toArray();
       return tasks.map(t => String(t.taskId));
@@ -496,7 +549,7 @@ export const getCompletedTasks = async () => {
 
 export const saveCompletedTasks = async (completedTasks) => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.completedTasks.clear();
       if (completedTasks.length > 0) {
@@ -518,6 +571,15 @@ export const addCompletedTask = async (taskId) => {
   if (!exists) {
     completedTasks.push(taskIdStr);
     await saveCompletedTasks(completedTasks);
+    
+    // Se a tarefa concluída for a tarefa destacada, remover o destaque
+    const highlightedTaskId = getHighlightedTask();
+    if (highlightedTaskId === taskIdStr) {
+      setHighlightedTask(null);
+      // Disparar evento para atualizar a UI
+      window.dispatchEvent(new CustomEvent('highlightedTaskChanged'));
+      console.log(`⭐ Tarefa destacada ${taskIdStr} foi concluída e o destaque foi removido`);
+    }
     
     console.log(`✅ Tarefa ${taskIdStr} marcada como concluída`);
     console.log(`📋 Tarefas concluídas agora:`, completedTasks);
@@ -548,7 +610,7 @@ export const removeCompletedTask = async (taskId) => {
 // Titles
 export const getTitles = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       return await db.titles.toArray();
     } catch (error) {
@@ -561,7 +623,7 @@ export const getTitles = async () => {
 
 export const saveTitles = async (titles) => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       await db.titles.clear();
       if (titles.length > 0) {
@@ -579,7 +641,7 @@ export const saveTitles = async (titles) => {
 // Earned Titles
 export const getEarnedTitles = async () => {
   await initStorage();
-  if (useIndexedDB) {
+  if (useIndexedDB()) {
     try {
       const titles = await db.earnedTitles.toArray();
       return titles.map(t => t.titleId);
@@ -596,7 +658,7 @@ export const addEarnedTitle = async (titleId) => {
   const earned = await getEarnedTitles();
   if (!earned.includes(titleId)) {
     earned.push(titleId);
-    if (useIndexedDB) {
+    if (useIndexedDB()) {
       try {
         await db.earnedTitles.put({ titleId });
         await addMutation('earnedTitle', { titleId });
@@ -627,5 +689,19 @@ export const setSelectedTitle = (titleId) => {
     localStorage.removeItem(STORAGE_KEYS.SELECTED_TITLE);
   } else {
     localStorage.setItem(STORAGE_KEYS.SELECTED_TITLE, titleId);
+  }
+};
+
+// Highlighted Task
+export const getHighlightedTask = () => {
+  const data = localStorage.getItem(STORAGE_KEYS.HIGHLIGHTED_TASK);
+  return data || null;
+};
+
+export const setHighlightedTask = (taskId) => {
+  if (taskId === null) {
+    localStorage.removeItem(STORAGE_KEYS.HIGHLIGHTED_TASK);
+  } else {
+    localStorage.setItem(STORAGE_KEYS.HIGHLIGHTED_TASK, String(taskId));
   }
 };
