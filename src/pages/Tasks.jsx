@@ -384,6 +384,11 @@ const SortableTaskItem = ({
   onDecrementCycle,
   onFinishCycle
 }) => {
+  // Verificação de segurança: retornar null se task não existir
+  if (!task || !task.id) {
+    return null;
+  }
+
   const theme = useTheme();
   const primaryColor = theme.palette.primary.main;
   const secondaryColor = theme.palette.secondary.main;
@@ -416,6 +421,7 @@ const SortableTaskItem = ({
       ref={setNodeRef}
       style={style}
       component={motion.div}
+      data-id={task.id}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -100 }}
@@ -635,11 +641,12 @@ const SortableTaskItem = ({
             : (task.skill ? [task.skill] : []);
 
           return skills.map((skill) => {
-            const skillColor = skillColors[skill] || primaryColor;
+            const skillColor = (skillColors && skillColors[skill]) || primaryColor;
+            const skillName = (skillNames && skillNames[skill]) || skill;
             return (
               <Chip
                 key={skill}
-                label={skillNames[skill]}
+                label={skillName}
                 size="small"
                 sx={{
                   backgroundColor: `${skillColor}33`,
@@ -1039,6 +1046,7 @@ const Tasks = ({ onTaskComplete }) => {
     })
   );
 
+
   useEffect(() => {
     loadTasks();
     loadCompletedTasks();
@@ -1219,6 +1227,30 @@ const Tasks = ({ onTaskComplete }) => {
   const isTaskCompleted = (taskId) => {
     const taskIdStr = String(taskId);
     return completedTasks.some(id => String(id) === taskIdStr);
+  };
+
+
+  // Modificador para ajustar o offset do DragOverlay devido ao transform do motion.div no App.jsx
+  const adjustDragOverlayModifier = (args) => {
+    const { transform, draggingNodeRect } = args;
+    if (!draggingNodeRect || !activeId) return transform;
+    
+    // Encontrar o elemento original que está sendo arrastado
+    const taskElement = document.querySelector(`[data-id="${activeId}"]`);
+    if (taskElement) {
+      const realRect = taskElement.getBoundingClientRect();
+      // Calcular a diferença entre a posição real e a posição calculada pelo @dnd-kit
+      const offsetX = realRect.left - draggingNodeRect.left;
+      const offsetY = realRect.top - draggingNodeRect.top;
+      
+      // Ajustar o transform para compensar o offset
+      return {
+        ...transform,
+        x: transform.x + offsetX,
+        y: transform.y + offsetY,
+      };
+    }
+    return transform;
   };
 
   // Funções para drag and drop
@@ -1812,6 +1844,8 @@ const Tasks = ({ onTaskComplete }) => {
     persistence: '#FFD93D',
   };
 
+  // Tarefa ativa sendo arrastada (para uso no DragOverlay)
+  const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
 
   return (
     <Box sx={{ p: 3, minHeight: '100vh', backgroundColor: 'background.default' }}>
@@ -1903,6 +1937,7 @@ const Tasks = ({ onTaskComplete }) => {
               collisionDetection={closestCenter}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
+              modifiers={[adjustDragOverlayModifier]}
             >
               <Box>
                 {commonTasks.length === 0 ? (
@@ -1949,10 +1984,15 @@ const Tasks = ({ onTaskComplete }) => {
                   </SortableContext>
                 )}
               </Box>
-              <DragOverlay>
-                {activeId ? (
+              <DragOverlay
+                style={{
+                  cursor: 'grabbing',
+                }}
+                adjustScale={false}
+              >
+                {activeTask ? (
                   <SortableTaskItem
-                    task={tasks.find(t => t.id === activeId)}
+                    task={activeTask}
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
                     onFocusClick={() => {}}
@@ -1962,16 +2002,17 @@ const Tasks = ({ onTaskComplete }) => {
                     progress={0}
                     formatTime={formatTime}
                     skillNames={skillNames}
-                          onPauseProgressive={() => {}}
-                          onStopProgressive={() => {}}
-                          onStopTimeTask={() => {}}
-                          progressiveElapsed={0}
-                          progressivePaused={false}
-                          progressiveRewards={null}
-                          cycleCount={0}
-                          onIncrementCycle={() => {}}
-                          onDecrementCycle={() => {}}
-                          onFinishCycle={() => {}}
+                    skillColors={skillColors}
+                    onPauseProgressive={() => {}}
+                    onStopProgressive={() => {}}
+                    onStopTimeTask={() => {}}
+                    progressiveElapsed={0}
+                    progressivePaused={false}
+                    progressiveRewards={null}
+                    cycleCount={0}
+                    onIncrementCycle={() => {}}
+                    onDecrementCycle={() => {}}
+                    onFinishCycle={() => {}}
                   />
                 ) : null}
               </DragOverlay>
@@ -1992,6 +2033,7 @@ const Tasks = ({ onTaskComplete }) => {
               collisionDetection={closestCenter}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
+              modifiers={[adjustDragOverlayModifier]}
             >
               <Box>
                 {timeTasks.length === 0 ? (
@@ -2037,10 +2079,15 @@ const Tasks = ({ onTaskComplete }) => {
                   </SortableContext>
                 )}
               </Box>
-              <DragOverlay>
-                {activeId ? (
+              <DragOverlay
+                style={{
+                  cursor: 'grabbing',
+                }}
+                adjustScale={false}
+              >
+                {activeTask ? (
                   <SortableTaskItem
-                    task={tasks.find(t => t.id === activeId)}
+                    task={activeTask}
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
                     onFocusClick={() => {}}
@@ -2050,16 +2097,17 @@ const Tasks = ({ onTaskComplete }) => {
                     progress={0}
                     formatTime={formatTime}
                     skillNames={skillNames}
-                          onPauseProgressive={() => {}}
-                          onStopProgressive={() => {}}
-                          onStopTimeTask={() => {}}
-                          progressiveElapsed={0}
-                          progressivePaused={false}
-                          progressiveRewards={null}
-                          cycleCount={0}
-                          onIncrementCycle={() => {}}
-                          onDecrementCycle={() => {}}
-                          onFinishCycle={() => {}}
+                    skillColors={skillColors}
+                    onPauseProgressive={() => {}}
+                    onStopProgressive={() => {}}
+                    onStopTimeTask={() => {}}
+                    progressiveElapsed={0}
+                    progressivePaused={false}
+                    progressiveRewards={null}
+                    cycleCount={0}
+                    onIncrementCycle={() => {}}
+                    onDecrementCycle={() => {}}
+                    onFinishCycle={() => {}}
                   />
                 ) : null}
               </DragOverlay>
@@ -2080,6 +2128,7 @@ const Tasks = ({ onTaskComplete }) => {
               collisionDetection={closestCenter}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
+              modifiers={[adjustDragOverlayModifier]}
             >
               <Box>
                 {progressiveTasksList.length === 0 ? (
@@ -2148,10 +2197,15 @@ const Tasks = ({ onTaskComplete }) => {
                   </SortableContext>
                 )}
               </Box>
-              <DragOverlay>
-                {activeId ? (
+              <DragOverlay
+                style={{
+                  cursor: 'grabbing',
+                }}
+                adjustScale={false}
+              >
+                {activeTask ? (
                   <SortableTaskItem
-                    task={tasks.find(t => t.id === activeId)}
+                    task={activeTask}
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
                     onFocusClick={() => {}}
@@ -2161,16 +2215,17 @@ const Tasks = ({ onTaskComplete }) => {
                     progress={0}
                     formatTime={formatTime}
                     skillNames={skillNames}
-                          onPauseProgressive={() => {}}
-                          onStopProgressive={() => {}}
-                          onStopTimeTask={() => {}}
-                          progressiveElapsed={0}
-                          progressivePaused={false}
-                          progressiveRewards={null}
-                          cycleCount={0}
-                          onIncrementCycle={() => {}}
-                          onDecrementCycle={() => {}}
-                          onFinishCycle={() => {}}
+                    skillColors={skillColors}
+                    onPauseProgressive={() => {}}
+                    onStopProgressive={() => {}}
+                    onStopTimeTask={() => {}}
+                    progressiveElapsed={0}
+                    progressivePaused={false}
+                    progressiveRewards={null}
+                    cycleCount={0}
+                    onIncrementCycle={() => {}}
+                    onDecrementCycle={() => {}}
+                    onFinishCycle={() => {}}
                   />
                 ) : null}
               </DragOverlay>
@@ -2191,6 +2246,7 @@ const Tasks = ({ onTaskComplete }) => {
               collisionDetection={closestCenter}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
+              modifiers={[adjustDragOverlayModifier]}
             >
               <Box>
                 {cycleTasksList.length === 0 ? (
@@ -2234,10 +2290,15 @@ const Tasks = ({ onTaskComplete }) => {
                   </SortableContext>
                 )}
               </Box>
-              <DragOverlay>
-                {activeId ? (
+              <DragOverlay
+                style={{
+                  cursor: 'grabbing',
+                }}
+                adjustScale={false}
+              >
+                {activeTask ? (
                   <SortableTaskItem
-                    task={tasks.find(t => t.id === activeId)}
+                    task={activeTask}
                     onCompleteClick={() => {}}
                     onStartTimeTask={() => {}}
                     onFocusClick={() => {}}
@@ -2247,6 +2308,7 @@ const Tasks = ({ onTaskComplete }) => {
                     progress={0}
                     formatTime={formatTime}
                     skillNames={skillNames}
+                    skillColors={skillColors}
                     onPauseProgressive={() => {}}
                     onStopProgressive={() => {}}
                     onStopTimeTask={() => {}}
@@ -2491,10 +2553,12 @@ const Tasks = ({ onTaskComplete }) => {
                         ? (Array.isArray(focusedTask.skills) ? focusedTask.skills : [focusedTask.skills])
                         : (focusedTask.skill ? [focusedTask.skill] : []);
 
-                      return skills.map((skill) => (
-                        <Chip
-                          key={skill}
-                          label={skillNames[skill]}
+                      return skills.map((skill) => {
+                        const skillName = (skillNames && skillNames[skill]) || skill;
+                        return (
+                          <Chip
+                            key={skill}
+                            label={skillName}
                           sx={{
                             backgroundColor: `${primaryColor}1A`,
                             color: textSecondary,
@@ -2504,7 +2568,8 @@ const Tasks = ({ onTaskComplete }) => {
                             px: 2,
                           }}
                         />
-                      ));
+                        );
+                      });
                     })()}
                     {focusedTask.type === 'time' && (
                       <Chip
